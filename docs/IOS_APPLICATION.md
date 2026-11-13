@@ -44,9 +44,8 @@ xcodebuild \
 
 The exact signing arguments depend on the developer account. A simulator build can use a simulator destination; device and archive builds require valid signing settings.
 
-Xcode 27 requires an iOS deployment target of at least 15.0. Pass
-`IPHONEOS_DEPLOYMENT_TARGET=15.0` when building with that toolchain; the inherited
-project default remains 11.0 for older Xcode installations.
+Xcode 27 requires an iOS deployment target of at least 15.0, which is the
+project default in `app/Project.xcconfig`.
 
 There is no supported `make ipa`/`ldid` fakesigning workflow in this repository.
 Fakesigning alone does not provide the provisioning or app-group entitlements
