@@ -49,6 +49,10 @@
 
 @property BOOL ignoreKeyboardMotion;
 @property (nonatomic) BOOL hasExternalKeyboard;
+// Keeps the terminal above the extra-keys bar when the keyboard layout guide
+// doesn't account for it (hardware keyboard, Mac, bar shown on its own).
+@property (nonatomic) NSLayoutConstraint *accessoryBarConstraint;
+- (void)updateAccessoryBarInset;
 
 @end
 
@@ -58,8 +62,18 @@
     [super viewDidLoad];
 
     if (@available(iOS 15.0, *)) {
+        // The terminal ends at whichever is higher: the keyboard or the
+        // extra-keys bar. The low-priority constraint stretches it down to
+        // that limit.
         self.bottomConstraint.active = NO;
-        [self.termView.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor].active = YES;
+        self.accessoryBarConstraint = [self.termView.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.bottomAnchor];
+        NSLayoutConstraint *fill = [self.termView.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor];
+        fill.priority = UILayoutPriorityDefaultLow;
+        [NSLayoutConstraint activateConstraints:@[
+            [self.termView.bottomAnchor constraintLessThanOrEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
+            self.accessoryBarConstraint,
+            fill,
+        ]];
     }
 
 #if !ISH_LINUX
@@ -338,8 +352,15 @@
     CGRect intersection = CGRectIntersection(keyboardFrame, self.view.bounds);
     BOOL intersects = !CGRectIsNull(intersection) && !CGRectIsEmpty(intersection);
     self.hasExternalKeyboard = !intersects || intersection.size.height < 100;
-    if (@available(iOS 15.0, *))
-        return; // UIKit's layout guide handles keyboard movement and safe areas.
+    if (@available(iOS 15.0, *)) {
+        // UIKit's layout guide handles keyboard movement and safe areas; the
+        // bar is checked again once the keyboard has finished moving it.
+        [self updateAccessoryBarInset];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self updateAccessoryBarInset];
+        });
+        return;
+    }
 
     keyboardFrame = intersects ? intersection : CGRectZero;
     CGFloat pad = self.view.safeAreaInsets.bottom;
@@ -369,6 +390,35 @@
                          }
                          completion:nil];
     }
+}
+
+- (void)updateAccessoryBarInset {
+    if (self.accessoryBarConstraint == nil)
+        return;
+    CGFloat inset = 0;
+    UIView *bar = self.termView.inputAccessoryView;
+    UIWindow *barWindow = bar.window;
+    UIWindow *window = self.view.window;
+    if (barWindow != nil && window != nil && !bar.hidden) {
+        // The bar lives in the keyboard's window, so convert through screen
+        // coordinates.
+        CGRect barInWindow = [bar convertRect:bar.bounds toView:nil];
+        CGRect barOnScreen = [barWindow convertRect:barInWindow toCoordinateSpace:barWindow.screen.coordinateSpace];
+        CGRect barFrame = [self.view convertRect:barOnScreen fromCoordinateSpace:window.screen.coordinateSpace];
+        CGRect visible = CGRectIntersection(barFrame, self.view.bounds);
+        // A docked bar spans the full width. One riding a floating keyboard
+        // doesn't, and shouldn't shrink the terminal.
+        if (!CGRectIsNull(visible) && !CGRectIsEmpty(visible) &&
+            visible.size.width >= self.view.bounds.size.width * 0.9)
+            inset = CGRectGetMaxY(self.view.bounds) - CGRectGetMinY(visible);
+    }
+    if (self.accessoryBarConstraint.constant != -inset)
+        self.accessoryBarConstraint.constant = -inset;
+}
+
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    [self updateAccessoryBarInset];
 }
 
 - (void)setHasExternalKeyboard:(BOOL)hasExternalKeyboard {
@@ -538,6 +588,12 @@
 
 - (void)layoutSubviews {
     [self.terminalViewController resizeBar];
+    [self.terminalViewController updateAccessoryBarInset];
+}
+
+- (void)didMoveToWindow {
+    [super didMoveToWindow];
+    [self.terminalViewController updateAccessoryBarInset];
 }
 
 @end
