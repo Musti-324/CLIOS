@@ -72,6 +72,8 @@ struct rowcol {
 #if USE_XTERM_RENDERER
     UILongPressGestureRecognizer *selectionGesture = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(selectTerminalText:)];
     [self addGestureRecognizer:selectionGesture];
+    UITapGestureRecognizer *focusGesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(focusTerminal:)];
+    [self addGestureRecognizer:focusGesture];
     if (@available(iOS 16.0, *)) {
         self.terminalEditMenu = [[UIEditMenuInteraction alloc] initWithDelegate:self];
         [self addInteraction:self.terminalEditMenu];
@@ -151,6 +153,12 @@ static NSString *const HANDLERS[] = {@"syncFocus", @"focus", @"newScrollHeight",
     webView.scrollView.delaysContentTouches = NO;
     webView.scrollView.canCancelContentTouches = NO;
     webView.scrollView.panGestureRecognizer.enabled = NO;
+#if USE_XTERM_RENDERER
+    // The web view only draws. If it received touches, WebKit could make its
+    // content view first responder, which drops the extra-keys bar and native
+    // text input. Taps, selection and scrolling are handled by native views.
+    webView.userInteractionEnabled = NO;
+#endif
     id <WKScriptMessageHandler> handler = [[WeakScriptMessageHandler alloc] initWithHandler:self];
     for (int i = 0; i < sizeof(HANDLERS)/sizeof(HANDLERS[0]); i++) {
         [webView.configuration.userContentController addScriptMessageHandler:handler name:HANDLERS[i]];
@@ -455,6 +463,15 @@ static NSString *const HANDLERS[] = {@"syncFocus", @"focus", @"newScrollHeight",
 
 - (void)selectAll:(id)sender {
     [self.terminal.webView evaluateJavaScript:@"exports.selectAll?.()" completionHandler:nil];
+}
+
+- (void)focusTerminal:(UITapGestureRecognizer *)gesture {
+    if (gesture.state != UIGestureRecognizerStateEnded)
+        return;
+    if (self.terminal.loaded)
+        [self.terminal.webView evaluateJavaScript:@"exports.clearSelection?.()" completionHandler:nil];
+    if (!self.isFirstResponder)
+        [self becomeFirstResponder];
 }
 
 - (void)selectTerminalText:(UILongPressGestureRecognizer *)gesture {
