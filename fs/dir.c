@@ -36,16 +36,6 @@ struct linux_dirent64_ {
     char name[];
 } __attribute__((packed));
 
-size_t fill_dirent_32(void *dirent_data, ino_t inode, off_t_ offset, const char *name, int type) {
-    struct linux_dirent_ *dirent = dirent_data;
-    dirent->inode = inode;
-    dirent->offset = offset;
-    dirent->reclen = offsetof(struct linux_dirent_, name) +
-        strlen(name) + 2; // name, null terminator, type
-    strcpy(dirent->name, name);
-    *((char *) dirent + dirent->reclen - 1) = type;
-    return dirent->reclen;
-}
 
 size_t fill_dirent_64(void *dirent_data, ino_t inode, off_t_ offset, const char *name, int type) {
     struct linux_dirent64_ *dirent = dirent_data;
@@ -125,9 +115,6 @@ int_t sys_getdents_common(fd_t f, addr_t dirents, dword_t count,
     return orig_count - count;
 }
 
-int_t sys_getdents(fd_t f, addr_t dirents, uint_t count) {
-    return sys_getdents_common(f, dirents, count, fill_dirent_32);
-}
 
 int_t sys_getdents64(fd_t f, addr_t dirents, uint_t count) {
     return sys_getdents_common(f, dirents, count, fill_dirent_64);

@@ -15,9 +15,6 @@ int_t sys_eventfd2(uint_t initval, int_t flags) {
     fd->eventfd.val = initval;
     return f_install(fd, flags);
 }
-int_t sys_eventfd(uint_t initval) {
-    return sys_eventfd2(initval, 0);
-}
 
 static ssize_t eventfd_read(struct fd *fd, void *buf, size_t bufsize) {
     if (bufsize < sizeof(uint64_t))

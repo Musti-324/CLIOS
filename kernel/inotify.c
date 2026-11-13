@@ -17,9 +17,6 @@ fd_t sys_inotify_init1(int_t flags) {
     return f_install(fd, flags);
 }
 
-fd_t sys_inotify_init(void) {
-    return sys_inotify_init1(0);
-}
 
 int_t sys_inotify_add_watch(fd_t inotify_f, addr_t path_addr, uint_t mask) {
     STRACE("inotify_add_watch(%d, 0x%x, %#x)", inotify_f, path_addr, mask);

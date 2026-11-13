@@ -18,20 +18,12 @@ fd_t sys_epoll_create(int_t flags) {
     fd->epollfd.poll = poll;
     return f_install(fd, flags);
 }
-fd_t sys_epoll_create0() {
-    return sys_epoll_create(0);
-}
 
 struct epoll_event_ {
     uint32_t events;
-#ifdef GUEST_ARM64
     uint32_t __pad;
-#endif
     uint64_t data;
 }
-#ifndef GUEST_ARM64
-__attribute__((packed))
-#endif
 ;
 
 #define EPOLL_CTL_ADD_ 1

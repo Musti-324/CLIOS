@@ -198,7 +198,6 @@ int main(int argc, char *const argv[]) {
     // Redirect printk output (fd 666) to stderr
     dup2(STDERR_FILENO, 666);
 
-#ifdef GUEST_ARM64
     const char *trace_highbits = getenv("ISH_TRACE_HIGHBITS");
     g_trace_highbits = trace_highbits && trace_highbits[0] && strcmp(trace_highbits, "0") != 0;
     const char *trace_faults = getenv("ISH_TRACE_FAULTS");
@@ -219,7 +218,6 @@ int main(int argc, char *const argv[]) {
     asbestos_set_trace_gate(getenv("ISH_TRACE_GATE_PC"),
                             getenv("ISH_TRACE_GATE_X4"),
                             getenv("ISH_TRACE_GATE_BUDGET"));
-#endif
 
     static char altstack[SIGSTKSZ];
     stack_t ss = {.ss_sp = altstack, .ss_size = SIGSTKSZ};
@@ -236,9 +234,7 @@ int main(int argc, char *const argv[]) {
     size_t p = 0;
     append_boot_env(envp, sizeof(envp), &p, "HOME=/root");
     append_boot_env(envp, sizeof(envp), &p, "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
-#ifdef GUEST_ARM64
     append_boot_env(envp, sizeof(envp), &p, "PYTHONMALLOC=malloc");
-#endif
     const char *term = getenv("TERM");
     if (term && term[0] != '\0')
         append_boot_env(envp, sizeof(envp), &p, "TERM=%s", term);

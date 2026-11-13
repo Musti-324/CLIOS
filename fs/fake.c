@@ -329,30 +329,6 @@ static struct fd *fakefs_open(struct mount *mount, const char *path, int flags, 
     return fd;
 }
 
-// WARNING: giant hack, just for file providerws
-struct fd *fakefs_open_inode(struct mount *mount, ino_t inode) {
-    struct fakefs_db *fs = &mount->fakefs;
-    db_begin_read(fs);
-    sqlite3_stmt *stmt = fs->stmt.path_from_inode;
-    sqlite3_bind_int64(stmt, 1, inode);
-step:
-    if (!db_exec(fs, stmt)) {
-        db_reset(fs, stmt);
-        db_rollback(fs);
-        return ERR_PTR(_ENOENT);
-    }
-    const char *path = (const char *) sqlite3_column_text(stmt, 0);
-    struct fd *fd = realfs.open(mount, path, O_RDWR_, 0);
-    if (PTR_ERR(fd) == _EISDIR)
-        fd = realfs.open(mount, path, O_RDONLY_, 0);
-    if (PTR_ERR(fd) == _ENOENT)
-        goto step;
-    db_reset(fs, stmt);
-    db_commit(fs);
-    fd->fake_inode = inode;
-    fd->ops = &fakefs_fdops;
-    return fd;
-}
 
 static int fakefs_link(struct mount *mount, const char *src, const char *dst) {
     struct fakefs_db *fs = &mount->fakefs;

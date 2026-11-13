@@ -42,9 +42,6 @@ int access_check(struct statbuf *stat, int check) {
 // TODO ENAMETOOLONG
 
 #define AT_EACCESS_ 0x200
-dword_t sys_access(addr_t path_addr, dword_t mode) {
-    return sys_faccessat(AT_FDCWD_, path_addr, mode, 0);
-}
 dword_t sys_faccessat(fd_t at_f, addr_t path_addr, mode_t_ mode, dword_t flags) {
     char path[MAX_PATH];
     if (user_read_string(path_addr, path, sizeof(path)))
@@ -87,9 +84,6 @@ fd_t sys_openat(fd_t at_f, addr_t path_addr, dword_t flags, mode_t_ mode) {
     return f_install(fd, flags);
 }
 
-fd_t sys_open(addr_t path_addr, dword_t flags, mode_t_ mode) {
-    return sys_openat(AT_FDCWD_, path_addr, flags, mode);
-}
 
 struct open_how_ {
     uint64_t flags;
@@ -156,9 +150,6 @@ dword_t sys_readlinkat(fd_t at_f, addr_t path_addr, addr_t buf_addr, dword_t buf
     return size;
 }
 
-dword_t sys_readlink(addr_t path_addr, addr_t buf_addr, dword_t bufsize) {
-    return sys_readlinkat(AT_FDCWD_, path_addr, buf_addr, bufsize);
-}
 
 dword_t sys_linkat(fd_t src_at_f, addr_t src_addr, fd_t dst_at_f, addr_t dst_addr) {
     char src[MAX_PATH];
@@ -177,9 +168,6 @@ dword_t sys_linkat(fd_t src_at_f, addr_t src_addr, fd_t dst_at_f, addr_t dst_add
     return generic_linkat(src_at, src, dst_at, dst);
 }
 
-dword_t sys_link(addr_t src_addr, addr_t dst_addr) {
-    return sys_linkat(AT_FDCWD_, src_addr, AT_FDCWD_, dst_addr);
-}
 
 #define AT_REMOVEDIR_ 0x200
 dword_t sys_unlinkat(fd_t at_f, addr_t path_addr, int_t flags) {
@@ -196,9 +184,6 @@ dword_t sys_unlinkat(fd_t at_f, addr_t path_addr, int_t flags) {
         return generic_unlinkat(at, path);
 }
 
-dword_t sys_unlink(addr_t path_addr) {
-    return sys_unlinkat(AT_FDCWD_, path_addr, 0);
-}
 
 dword_t sys_renameat2(fd_t src_at_f, addr_t src_addr, fd_t dst_at_f, addr_t dst_addr, int_t flags) {
     if (flags != 0)
@@ -223,9 +208,6 @@ dword_t sys_renameat(fd_t src_at_f, addr_t src_addr, fd_t dst_at_f, addr_t dst_a
     return sys_renameat2(src_at_f, src_addr, dst_at_f, dst_addr, 0);
 }
 
-dword_t sys_rename(addr_t src_addr, addr_t dst_addr) {
-    return sys_renameat2(AT_FDCWD_, src_addr, AT_FDCWD_, dst_addr, 0);
-}
 
 dword_t sys_symlinkat(addr_t target_addr, fd_t at_f, addr_t link_addr) {
     char target[MAX_PATH];
@@ -241,9 +223,6 @@ dword_t sys_symlinkat(addr_t target_addr, fd_t at_f, addr_t link_addr) {
     return generic_symlinkat(target, at, link);
 }
 
-dword_t sys_symlink(addr_t target_addr, addr_t link_addr) {
-    return sys_symlinkat(target_addr, AT_FDCWD_, link_addr);
-}
 
 dword_t sys_mknodat(fd_t at_f, addr_t path_addr, mode_t_ mode, dev_t_ dev) {
     char path[MAX_PATH];
@@ -257,9 +236,6 @@ dword_t sys_mknodat(fd_t at_f, addr_t path_addr, mode_t_ mode, dev_t_ dev) {
     return generic_mknodat(at, path, mode, dev);
 }
 
-dword_t sys_mknod(addr_t path_addr, mode_t_ mode, dev_t_ dev) {
-    return sys_mknodat(AT_FDCWD_, path_addr, mode, dev);
-}
 
 static ssize_t sys_read_buf(fd_t fd_no, void *buf, size_t size) {
     struct fd *fd = f_get(fd_no);
@@ -349,7 +325,6 @@ out:
 // by the inefficiency of the emulator.
 
 static struct iovec_ *read_iovec(addr_t iovec_addr, unsigned iovec_count) {
-#ifdef GUEST_ARM64
     // ARM64 uses 64-bit iovec structure (16 bytes per entry)
     // We read the 64-bit version and convert to 32-bit for internal use
     size_t iovec64_size = sizeof(struct iovec64_) * iovec_count;
@@ -373,17 +348,6 @@ static struct iovec_ *read_iovec(addr_t iovec_addr, unsigned iovec_count) {
     }
     free(iovec64);
     return iovec;
-#else
-    dword_t iovec_size = sizeof(struct iovec_) * iovec_count;
-    struct iovec_ *iovec = malloc(iovec_size);
-    if (iovec == NULL)
-        return ERR_PTR(_ENOMEM);
-    if (user_read(iovec_addr, iovec, iovec_size)) {
-        free(iovec);
-        return ERR_PTR(_EFAULT);
-    }
-    return iovec;
-#endif
 }
 
 static ssize_t iovec_size(struct iovec_ *iovec, unsigned iovec_count) {
@@ -475,38 +439,6 @@ dword_t sys_writev(fd_t fd_no, addr_t iovec_addr, dword_t iovec_count) {
     return res;
 }
 
-dword_t sys__llseek(fd_t f, dword_t off_high, dword_t off_low, addr_t res_addr, dword_t whence) {
-    struct fd *fd = f_get(f);
-    if (fd == NULL)
-        return _EBADF;
-    if (!fd->ops->lseek)
-        return _ESPIPE;
-    lock(&fd->lock);
-    off_t_ off = ((qword_t) off_high << 32) | off_low;
-    STRACE("llseek(%d, %lu, %#x, %d)", f, off, res_addr, whence);
-    off_t_ res = fd->ops->lseek(fd, off, whence);
-    STRACE(" -> %lu", res);
-    unlock(&fd->lock);
-    if (res < 0)
-        return res;
-    if (user_put(res_addr, res))
-        return _EFAULT;
-    return 0;
-}
-
-dword_t sys_lseek(fd_t f, dword_t off, dword_t whence) {
-    struct fd *fd = f_get(f);
-    if (fd == NULL)
-        return _EBADF;
-    if (!fd->ops->lseek)
-        return _ESPIPE;
-    lock(&fd->lock);
-    off_t res = fd->ops->lseek(fd, off, whence);
-    unlock(&fd->lock);
-    if ((dword_t) res != res)
-        return _EOVERFLOW;
-    return res;
-}
 
 // 64-bit lseek for ARM64
 // Returns the new file position directly (not via pointer like _llseek)
@@ -929,93 +861,7 @@ static int mount_statfs(struct mount *mount, struct statfsbuf *stat) {
     return err;
 }
 
-static int_t statfs_mount(struct mount *mount, addr_t buf_addr) {
-    struct statfsbuf buf = {};
-    int err = mount_statfs(mount, &buf);
-    if (err < 0)
-        return err;
-    struct statfs_ out_buf = {
-        .type = buf.type,
-        .bsize = buf.bsize,
-        .blocks = buf.blocks,
-        .bfree = buf.bfree,
-        .bavail = buf.bavail,
-        .files = buf.files,
-        .ffree = buf.ffree,
-        .fsid = buf.fsid,
-        .namelen = buf.namelen,
-        .frsize = buf.frsize,
-        .flags = buf.flags,
-    };
-    if (user_put(buf_addr, out_buf))
-        return _EFAULT;
-    return 0;
-}
 
-static int_t statfs64_mount(struct mount *mount, addr_t buf_addr) {
-    struct statfsbuf buf = {};
-    int err = mount_statfs(mount, &buf);
-    if (err < 0)
-        return err;
-    struct statfs64_ out_buf = {
-        .type = buf.type,
-        .bsize = buf.bsize,
-        .blocks = buf.blocks,
-        .bfree = buf.bfree,
-        .bavail = buf.bavail,
-        .files = buf.files,
-        .ffree = buf.ffree,
-        .fsid = buf.fsid,
-        .namelen = buf.namelen,
-        .frsize = buf.frsize,
-        .flags = buf.flags,
-    };
-    if (user_put(buf_addr, out_buf))
-        return _EFAULT;
-    return 0;
-}
-
-dword_t sys_statfs(addr_t path_addr, addr_t buf_addr) {
-    char path_raw[MAX_PATH];
-    if (user_read_string(path_addr, path_raw, sizeof(path_raw)))
-        return _EFAULT;
-    STRACE("statfs(\"%s\", %#x)", path_raw, buf_addr);
-    char path[MAX_PATH];
-    int err = path_normalize(AT_PWD, path_raw, path, N_SYMLINK_NOFOLLOW);
-    if (err < 0)
-        return err;
-    struct mount *mount = mount_find(path);
-    err = statfs_mount(mount, buf_addr);
-    mount_release(mount);
-    return err;
-}
-
-dword_t sys_statfs64(addr_t path_addr, dword_t buf_size, addr_t buf_addr) {
-    char path_raw[MAX_PATH];
-    if (user_read_string(path_addr, path_raw, sizeof(path_raw)))
-        return _EFAULT;
-    STRACE("statfs64(\"%s\", %d, %#x)", path_raw, buf_size, buf_addr);
-    if (buf_size != sizeof(struct statfs64_))
-        return _EINVAL;
-    char path[MAX_PATH];
-    int err = path_normalize(AT_PWD, path_raw, path, N_SYMLINK_NOFOLLOW);
-    if (err < 0)
-        return err;
-    struct mount *mount = mount_find(path);
-    err = statfs64_mount(mount, buf_addr);
-    mount_release(mount);
-    return err;
-}
-
-dword_t sys_fstatfs(fd_t f, addr_t buf_addr) {
-    return statfs_mount(f_get(f)->mount, buf_addr);
-}
-
-dword_t sys_fstatfs64(fd_t f, addr_t buf_addr) {
-    return statfs64_mount(f_get(f)->mount, buf_addr);
-}
-
-#if defined(GUEST_ARM64)
 // ARM64 uses statfs (not statfs64) with a different structure layout
 // The structure uses 64-bit fields throughout (LP64 ABI)
 static int_t statfs_arm64_mount(struct mount *mount, addr_t buf_addr) {
@@ -1063,7 +909,6 @@ dword_t sys_fstatfs_arm64(fd_t f, addr_t buf_addr) {
         return _EBADF;
     return statfs_arm64_mount(fd->mount, buf_addr);
 }
-#endif
 
 dword_t sys_flock(fd_t f, dword_t operation) {
     struct fd *fd = f_get(f);
@@ -1107,40 +952,6 @@ dword_t sys_utimensat(fd_t at_f, addr_t path_addr, addr_t times_addr, dword_t fl
     return sys_utime_common(at_f, path_addr, atime, mtime, flags);
 }
 
-dword_t sys_utimes(addr_t path_addr, addr_t times_addr) {
-    struct timespec atime;
-    struct timespec mtime;
-    if (times_addr == 0) {
-        atime = mtime = timespec_now(CLOCK_REALTIME);
-    } else {
-        struct timeval_ times[2];
-        if (user_get(times_addr, times))
-            return _EFAULT;
-        atime = convert_timeval(times[0]);
-        mtime = convert_timeval(times[1]);
-    }
-    return sys_utime_common(AT_FDCWD_, path_addr, atime, mtime, 0);
-}
-
-dword_t sys_utime(addr_t path_addr, addr_t times_addr) {
-    struct timespec atime;
-    struct timespec mtime;
-    if (times_addr == 0) {
-        atime = mtime = timespec_now(CLOCK_REALTIME);
-    } else {
-        struct utimbuf_ {
-            time_t_ actime;
-            time_t_ modtime;
-        } times;
-        if (user_get(times_addr, times))
-            return _EFAULT;
-        atime.tv_sec = times.actime;
-        atime.tv_nsec = 0;
-        mtime.tv_sec = times.modtime;
-        mtime.tv_nsec = 0;
-    }
-    return sys_utime_common(AT_FDCWD_, path_addr, atime, mtime, 0);
-}
 
 static int generic_fsetattr(struct fd *fd, struct attr attr) {
     if (fd->mount->fs->fsetattr == NULL)
@@ -1187,9 +998,6 @@ dword_t sys_fchmodat2(fd_t at_f, addr_t path_addr, dword_t mode, dword_t flags) 
     return do_fchmodat(at_f, path_addr, mode, flags);
 }
 
-dword_t sys_chmod(addr_t path_addr, dword_t mode) {
-    return sys_fchmodat(AT_FDCWD_, path_addr, mode);
-}
 
 dword_t sys_fchown32(fd_t f, uid_t_ owner, uid_t_ group) {
     STRACE("fchown(%d, %d, %d)", f, owner, group);
@@ -1239,13 +1047,6 @@ dword_t sys_fchownat(fd_t at_f, addr_t path_addr, dword_t owner, dword_t group, 
     return 0;
 }
 
-dword_t sys_chown32(addr_t path_addr, uid_t_ owner, uid_t_ group) {
-    return sys_fchownat(AT_FDCWD_, path_addr, owner, group, 0);
-}
-
-dword_t sys_lchown(addr_t path_addr, uid_t_ owner, uid_t_ group) {
-    return sys_fchownat(AT_FDCWD_, path_addr, owner, group, AT_SYMLINK_NOFOLLOW_);
-}
 
 // ARM64: 64-bit values passed in single registers
 dword_t sys_truncate64(addr_t path_addr, off_t_ size) {
@@ -1290,17 +1091,6 @@ dword_t sys_mkdirat(fd_t at_f, addr_t path_addr, mode_t_ mode) {
     return generic_mkdirat(at, path, mode);
 }
 
-dword_t sys_mkdir(addr_t path_addr, mode_t_ mode) {
-    return sys_mkdirat(AT_FDCWD_, path_addr, mode);
-}
-
-dword_t sys_rmdir(addr_t path_addr) {
-    char path[MAX_PATH];
-    if (user_read_string(path_addr, path, sizeof(path)))
-        return _EFAULT;
-    STRACE("rmdir(%s)", path);
-    return generic_rmdirat(AT_PWD, path);
-}
 
 dword_t sys_fsync(fd_t f) {
     struct fd *fd = f_get(f);
@@ -1312,10 +1102,6 @@ dword_t sys_fsync(fd_t f) {
     return err;
 }
 
-// a few stubs
-dword_t sys_sendfile(fd_t out_fd, fd_t in_fd, addr_t offset_addr, dword_t count) {
-    return sys_sendfile64(out_fd, in_fd, offset_addr, count);
-}
 dword_t sys_sendfile64(fd_t out_fd, fd_t in_fd, addr_t offset_addr, dword_t count) {
     STRACE("sendfile64(%d, %d, 0x%x, %d)", out_fd, in_fd, offset_addr, count);
     struct fd *in = f_get(in_fd);

@@ -37,26 +37,18 @@ __thread volatile addr_t jit_saved_pc;  // block start PC, read by signal handle
 __thread int ish_thread_marker;
 
 // Architecture-specific instruction pointer access
-#if defined(GUEST_ARM64)
 #define CPU_IP(cpu) ((cpu)->pc)
 #define CPU_HAS_SINGLE_STEP 0
-#else
-#define CPU_IP(cpu) ((cpu)->eip)
-#define CPU_HAS_SINGLE_STEP ((cpu)->tf)
-#endif
 
 extern int current_pid(void);
 
-#ifdef GUEST_ARM64
 __attribute__((weak)) void *mem_ptr(struct mem *mem, addr_t addr, int type) {
     (void) mem;
     (void) addr;
     (void) type;
     return NULL;
 }
-#endif
 
-#ifdef GUEST_ARM64
 bool arm64_block_stats_enabled;
 static bool arm64_block_stats_dumped;
 static bool arm64_eager_prechain_enabled;
@@ -181,10 +173,6 @@ void arm64_block_stats_count_chained_entry(struct fiber_block *from, unsigned lo
     if (!matched_slot)
         atomic_fetch_add_explicit(&arm64_block_stats_chain_entry_unknown_slot, 1, memory_order_relaxed);
 }
-#else
-#define ARM64_BLOCK_STAT_INC(counter) do {} while (0)
-#define ARM64_BLOCK_STAT_ADD(counter, value) do {} while (0)
-#endif
 
 // Stubs / debug hooks referenced from assembly/gen.c/tlb.c
 // High-bit tracing is an opt-in diagnostic. It is useful when chasing W/X
@@ -664,9 +652,7 @@ void asbestos_invalidate_all(struct asbestos *asbestos) {
 }
 
 static struct fiber_block *fiber_lookup(struct asbestos *asbestos, addr_t addr);
-#ifdef GUEST_ARM64
 static void fiber_prechain_same_page(struct asbestos *asbestos, struct fiber_block *block);
-#endif
 
 static void fiber_resize_hash(struct asbestos *asbestos, size_t new_size) {
     TRACE_(verbose, "%d resizing hash to %lu, using %lu bytes for gadgets\n", current_pid(), new_size, asbestos->mem_used);
@@ -696,10 +682,8 @@ static void fiber_insert(struct asbestos *asbestos, struct fiber_block *block) {
     list_init_add(blocks_list(asbestos, PAGE(block->addr), 0), &block->page[0]);
     if (PAGE(block->addr) != PAGE(block->end_addr))
         list_init_add(blocks_list(asbestos, PAGE(block->end_addr), 1), &block->page[1]);
-#ifdef GUEST_ARM64
     if (arm64_eager_prechain_enabled)
         fiber_prechain_same_page(asbestos, block);
-#endif
 }
 
 static struct fiber_block *fiber_lookup(struct asbestos *asbestos, addr_t addr) {
@@ -714,7 +698,6 @@ static struct fiber_block *fiber_lookup(struct asbestos *asbestos, addr_t addr) 
     return NULL;
 }
 
-#ifdef GUEST_ARM64
 #define ARM64_FAKE_IP_MASK UINT64_C(0x0000ffffffffffff)
 #define ARM64_FAKE_IP_TAG (UINT64_C(1) << 63)
 #define ARM64_EAGER_PRECHAIN_INCOMING_SCAN_LIMIT 2
@@ -823,7 +806,6 @@ static void fiber_prechain_same_page(struct asbestos *asbestos, struct fiber_blo
     if (arm64_eager_prechain_incoming_enabled)
         fiber_prechain_incoming_same_page(asbestos, block);
 }
-#endif
 
 static struct fiber_block *fiber_block_compile(addr_t ip, struct tlb *tlb) {
     struct gen_state state;
@@ -845,14 +827,12 @@ static struct fiber_block *fiber_block_compile(addr_t ip, struct tlb *tlb) {
         // no block should span more than 2 pages
         // guarantee this by limiting total block size to 1 page
         // TODO refuse to decode implausibly long gadget streams
-#ifdef GUEST_ARM64
         if (state.internal_continue_segment_budget != 0 &&
                 state.ip - state.internal_continue_segment_start >=
                     state.internal_continue_segment_budget * 4) {
             gen_exit(&state);
             break;
         }
-#endif
         if (state.ip - ip >= PAGE_SIZE - 15) {
             gen_exit(&state);
             break;
@@ -864,7 +844,6 @@ static struct fiber_block *fiber_block_compile(addr_t ip, struct tlb *tlb) {
     }
     gen_end(&state);
     assert(state.ip - ip <= PAGE_SIZE);
-#ifdef GUEST_ARM64
     ARM64_BLOCK_STAT_INC(arm64_block_stats_compiled);
     ARM64_BLOCK_STAT_ADD(arm64_block_stats_code_words, state.size);
     ARM64_BLOCK_STAT_ADD(arm64_block_stats_guest_bytes, state.ip - ip);
@@ -872,7 +851,6 @@ static struct fiber_block *fiber_block_compile(addr_t ip, struct tlb *tlb) {
         ARM64_BLOCK_STAT_INC(arm64_block_stats_jump0);
     if (state.jump_ip[1] != 0)
         ARM64_BLOCK_STAT_INC(arm64_block_stats_jump1);
-#endif
     state.block->used = state.capacity;
 #ifdef ISH_JIT
     jit_block(state.block, units);
@@ -896,9 +874,7 @@ static void fiber_block_disconnect(struct asbestos *asbestos, struct fiber_block
 #ifdef ISH_JIT
                 jit_unlink(block, i);
 #endif
-#ifdef GUEST_ARM64
                 block->jump_ip_is_fake[i] = true;
-#endif
             }
             list_remove(&block->jumps_from_links[i]);
         }
@@ -910,9 +886,7 @@ static void fiber_block_disconnect(struct asbestos *asbestos, struct fiber_block
 #ifdef ISH_JIT
                 jit_unlink(prev_block, i);
 #endif
-#ifdef GUEST_ARM64
                 prev_block->jump_ip_is_fake[i] = true;
-#endif
             }
             list_remove(&prev_block->jumps_from_links[i]);
         }
@@ -1039,13 +1013,8 @@ static int cpu_step_to_interrupt(struct cpu_state *cpu, struct tlb *tlb) {
         struct fiber_block *last_block = frame->last_block;
         if (last_block != NULL &&
                 !last_block->is_jetsam && !block->is_jetsam &&
-#ifdef GUEST_ARM64
                 (last_block->jump_ip_is_fake[0] ||
                  last_block->jump_ip_is_fake[1])
-#else
-                (last_block->jump_ip[0] != NULL ||
-                 last_block->jump_ip[1] != NULL)
-#endif
                 ) {
             ARM64_BLOCK_STAT_INC(arm64_block_stats_chain_attempts);
             if (trylock(&asbestos->lock) == 0) {
@@ -1055,17 +1024,12 @@ static int cpu_step_to_interrupt(struct cpu_state *cpu, struct tlb *tlb) {
                     for (int i = 0; i <= 1; i++) {
                         if (last_block->jump_ip[i] == NULL)
                             continue;
-#ifdef GUEST_ARM64
                         if (!last_block->jump_ip_is_fake[i])
                             continue;
                         addr_t target_addr;
                         if (!arm64_fake_jump_target(*last_block->jump_ip[i], &target_addr) ||
                                 target_addr != block->addr)
                             continue;
-#else
-                        if ((*last_block->jump_ip[i] & 0xffffffff) != block->addr)
-                            continue;
-#endif
 #ifdef ISH_JIT
                         if (!jit_chain_ok(last_block, i, block)) {
                             if (jit_chain_refused(last_block, i, block)) {
@@ -1082,9 +1046,7 @@ static int cpu_step_to_interrupt(struct cpu_state *cpu, struct tlb *tlb) {
                         jit_link(last_block, i, block);
 #endif
                         *last_block->jump_ip[i] = (unsigned long) block->code;
-#ifdef GUEST_ARM64
                         last_block->jump_ip_is_fake[i] = false;
-#endif
                         ARM64_BLOCK_STAT_INC(arm64_block_stats_chain_patches);
                         if (i == 0)
                             ARM64_BLOCK_STAT_INC(arm64_block_stats_chain_patch_slot0);
@@ -1222,7 +1184,6 @@ int cpu_run_to_interrupt(struct cpu_state *cpu, struct tlb *tlb) {
     ish_thread_marker = 1;
     if (cpu->poked_ptr == NULL)
         cpu->poked_ptr = &cpu->_poked;
-#ifdef GUEST_ARM64
     // NOTE: Do NOT invalidate exclusive monitor here.
     // This function is called once, but the inner loop (cpu_step_to_interrupt)
     // calls fiber_enter repeatedly. The LDXR/STXR pair may span multiple
@@ -1230,7 +1191,6 @@ int cpu_run_to_interrupt(struct cpu_state *cpu, struct tlb *tlb) {
     // LDXR/STXR atomicity across block boundaries.
     // The exclusive monitor is invalidated by STXR itself (success or fail)
     // and by context switches / signal delivery.
-#endif
     struct asbestos *asbestos = cpu->mmu->asbestos;
     __atomic_add_fetch(&asbestos->active_threads, 1, __ATOMIC_RELAXED);
     tlb_refresh(tlb, cpu->mmu);

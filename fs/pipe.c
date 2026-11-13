@@ -52,6 +52,3 @@ close_pipe:
     return err;
 }
 
-int_t sys_pipe(addr_t pipe_addr) {
-    return sys_pipe2(pipe_addr, 0);
-}

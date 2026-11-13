@@ -34,46 +34,6 @@ rlim_t_ rlimit(int resource) {
     return limit.cur;
 }
 
-static int do_getrlimit32(int resource, struct rlimit32_ *rlimit32) {
-    STRACE("getlimit(%d)", resource);
-    struct rlimit_ rlimit;
-    int err = rlimit_get(current, resource, &rlimit);
-    if (err < 0)
-        return err;
-    STRACE(" {cur=%#x, max=%#x}", rlimit.cur, rlimit.max);
-
-    rlimit32->max = rlimit.max;
-    rlimit32->cur = rlimit.cur;
-    return 0;
-}
-
-dword_t sys_getrlimit32(dword_t resource, addr_t rlim_addr) {
-    struct rlimit32_ rlimit;
-    int err = do_getrlimit32(resource, &rlimit);
-    if (err < 0)
-        return err;
-    if (user_put(rlim_addr, rlimit))
-        return _EFAULT;
-    return 0;
-}
-
-dword_t sys_old_getrlimit32(dword_t resource, addr_t rlim_addr) {
-    struct rlimit32_ rlimit;
-    int err = do_getrlimit32(resource, &rlimit);
-    if (err < 0)
-        return err;
-
-    // This version of the call is for programs that aren't aware of rlim_t
-    // being 64 bit. RLIM_INFINITY looks like -1 when truncated to 32 bits.
-    if (rlimit.cur > INT_MAX)
-        rlimit.cur = INT_MAX;
-    if (rlimit.max > INT_MAX)
-        rlimit.max = INT_MAX;
-
-    if (user_put(rlim_addr, rlimit))
-        return _EFAULT;
-    return 0;
-}
 
 static int check_setrlimit(int resource, struct rlimit_ new_limit) {
     if (superuser())
@@ -87,16 +47,6 @@ static int check_setrlimit(int resource, struct rlimit_ new_limit) {
     return 0;
 }
 
-dword_t sys_setrlimit32(dword_t resource, addr_t rlim_addr) {
-    struct rlimit_ rlimit;
-    if (user_get(rlim_addr, rlimit))
-        return _EFAULT;
-    STRACE("setrlimit(%d, {cur=%#x, max=%#x})", resource, rlimit.cur, rlimit.max);
-    int err = check_setrlimit(resource, rlimit);
-    if (err < 0)
-        return err;
-    return rlimit_set(current, resource, rlimit);
-}
 
 // 64-bit getrlimit/setrlimit for ARM64 (struct rlimit with 64-bit cur/max)
 dword_t sys_getrlimit64(dword_t resource, addr_t rlim_addr) {

@@ -91,8 +91,6 @@ void cpu() {
     OFFSET(TLB_ENTRY, tlb_entry, page);
     OFFSET(TLB_ENTRY, tlb_entry, page_if_writable);
     OFFSET(TLB_ENTRY, tlb_entry, data_minus_addr);
-#ifdef GUEST_ARM64
     OFFSET(TLB_ENTRY, tlb_entry, gen);
     OFFSET(MMU, mmu, changes);
-#endif
 }

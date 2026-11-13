@@ -108,11 +108,7 @@ static int netlink_iovs(addr_t addr, uint64_t count, struct netlink_iov *iov, si
     if (count > 1024) return _EMSGSIZE;
     *size = 0;
     for (size_t i = 0; i < count; i++) {
-#ifdef GUEST_ARM64
         struct iovec64_ iv;
-#else
-        struct iovec_ iv;
-#endif
         if (user_get(addr + i * sizeof(iv), iv)) return _EFAULT;
         if (iv.len > SIZE_MAX - *size) return _EMSGSIZE;
         iov[i] = (struct netlink_iov) {(addr_t) iv.base, iv.len};
@@ -122,11 +118,7 @@ static int netlink_iovs(addr_t addr, uint64_t count, struct netlink_iov *iov, si
 }
 static int netlink_stub_sendmsg(struct fd *sock, addr_t addr, int flags) {
     if (flags & ~(MSG_DONTWAIT_ | 0x4000 /* MSG_NOSIGNAL */)) return _EOPNOTSUPP;
-#ifdef GUEST_ARM64
     struct msghdr64_ m;
-#else
-    struct msghdr_ m;
-#endif
     if (user_get(addr, m)) return _EFAULT;
     if (m.msg_controllen) return _EOPNOTSUPP;
     int err = netlink_destination(m.msg_name, m.msg_namelen);
@@ -145,11 +137,7 @@ static int netlink_stub_sendmsg(struct fd *sock, addr_t addr, int flags) {
     return netlink_stub_reply(sock, buf, total);
 }
 static int netlink_stub_recvmsg(struct fd *sock, addr_t addr, int flags) {
-#ifdef GUEST_ARM64
     struct msghdr64_ m;
-#else
-    struct msghdr_ m;
-#endif
     if (user_get(addr, m)) return _EFAULT;
     struct netlink_iov iov[1024];
     size_t capacity;
@@ -1072,13 +1060,6 @@ int_t sys_recvfrom(fd_t sock_fd, addr_t buffer_addr, dword_t len, dword_t flags,
     return res;
 }
 
-int_t sys_send(fd_t sock_fd, addr_t buf, dword_t len, int_t flags) {
-    return sys_sendto(sock_fd, buf, len, flags, 0, 0);
-}
-
-int_t sys_recv(fd_t sock_fd, addr_t buf, dword_t len, int_t flags) {
-    return sys_recvfrom(sock_fd, buf, len, flags, 0, 0);
-}
 
 int_t sys_shutdown(fd_t sock_fd, dword_t how) {
     STRACE("shutdown(%d, %d)", sock_fd, how);
@@ -1328,13 +1309,8 @@ out:
     return ret;
 }
 
-#ifdef GUEST_ARM64
 #define cmsghdr_guest cmsghdr64_
 #define CMSG_NXTHDR_GUEST CMSG_NXTHDR64_
-#else
-#define cmsghdr_guest cmsghdr_
-#define CMSG_NXTHDR_GUEST CMSG_NXTHDR_
-#endif
 
 static void scm_free(struct scm *scm) {
     for (unsigned i = 0; i < scm->num_fds; i++)
@@ -1355,7 +1331,6 @@ int_t sys_sendmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
     // Read the guest msghdr struct into our internal 32-bit representation
     struct msghdr msg;
     struct msghdr_ msg_fake;
-#ifdef GUEST_ARM64
     struct msghdr64_ msg_fake64;
     if (user_get(msghdr_addr, msg_fake64))
         return _EFAULT;
@@ -1366,10 +1341,6 @@ int_t sys_sendmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
     msg_fake.msg_control = (addr_t)msg_fake64.msg_control;
     msg_fake.msg_controllen = (uint_t)msg_fake64.msg_controllen;
     msg_fake.msg_flags = msg_fake64.msg_flags;
-#else
-    if (user_get(msghdr_addr, msg_fake))
-        return _EFAULT;
-#endif
     if (msg_fake.msg_iovlen > 1024)
         return _EMSGSIZE;
     if (msg_fake.msg_iovlen != 0 && msg_fake.msg_iov == 0)
@@ -1388,7 +1359,6 @@ int_t sys_sendmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
     }
 
     // msg_iovec
-#ifdef GUEST_ARM64
     struct iovec64_ msg_iov_fake64[msg_fake.msg_iovlen];
     if (user_read(msg_fake.msg_iov, msg_iov_fake64, sizeof(msg_iov_fake64)))
         return _EFAULT;
@@ -1407,26 +1377,6 @@ int_t sys_sendmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
         if (user_read((addr_t)msg_iov_fake64[i].base, msg_iov[i].iov_base, msg_iov[i].iov_len))
             goto out_free_iov;
     }
-#else
-    struct iovec_ msg_iov_fake[msg_fake.msg_iovlen];
-    if (user_get(msg_fake.msg_iov, msg_iov_fake))
-        return _EFAULT;
-    struct iovec msg_iov[msg_fake.msg_iovlen];
-    memset(msg_iov, 0, sizeof(msg_iov));
-    msg.msg_iov = msg_iov;
-    msg.msg_iovlen = sizeof(msg_iov) / sizeof(msg_iov[0]);
-    for (size_t i = 0; i < (size_t) msg.msg_iovlen; i++) {
-        msg_iov[i].iov_len = msg_iov_fake[i].len;
-        msg_iov[i].iov_base = malloc(msg_iov_fake[i].len);
-        if (msg_iov[i].iov_len != 0 && msg_iov[i].iov_base == NULL) {
-            err = _ENOMEM;
-            goto out_free_iov;
-        }
-        err = _EFAULT;
-        if (user_read(msg_iov_fake[i].base, msg_iov[i].iov_base, msg_iov_fake[i].len))
-            goto out_free_iov;
-    }
-#endif
 
     // msg_control
     uint8_t msg_control_buf[2048];
@@ -1572,7 +1522,6 @@ int_t sys_recvmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
 
     // Read the guest msghdr struct into our internal 32-bit representation
     struct msghdr_ msg_fake;
-#ifdef GUEST_ARM64
     struct msghdr64_ msg_fake64;
     if (user_get(msghdr_addr, msg_fake64))
         return _EFAULT;
@@ -1583,10 +1532,6 @@ int_t sys_recvmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
     msg_fake.msg_control = (addr_t)msg_fake64.msg_control;
     msg_fake.msg_controllen = (uint_t)msg_fake64.msg_controllen;
     msg_fake.msg_flags = msg_fake64.msg_flags;
-#else
-    if (user_get(msghdr_addr, msg_fake))
-        return _EFAULT;
-#endif
     if (msg_fake.msg_iovlen > 1024)
         return _EMSGSIZE;
     if (msg_fake.msg_iovlen != 0 && msg_fake.msg_iov == 0)
@@ -1622,7 +1567,6 @@ int_t sys_recvmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
         return _EINVAL;
 
     // msg_iovec (no initial content)
-#ifdef GUEST_ARM64
     struct iovec64_ msg_iov_fake64[msg_fake.msg_iovlen];
     if (user_read(msg_fake.msg_iov, msg_iov_fake64, sizeof(msg_iov_fake64)))
         return _EFAULT;
@@ -1640,23 +1584,6 @@ int_t sys_recvmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
             return _ENOMEM;
         }
     }
-#else
-    struct iovec_ msg_iov_fake[msg_fake.msg_iovlen];
-    if (user_get(msg_fake.msg_iov, msg_iov_fake))
-        return _EFAULT;
-    struct iovec msg_iov[msg_fake.msg_iovlen];
-    msg.msg_iov = msg_iov;
-    msg.msg_iovlen = sizeof(msg_iov) / sizeof(msg_iov[0]);
-    for (size_t i = 0; i < (size_t) msg.msg_iovlen; i++) {
-        msg_iov[i].iov_len = msg_iov_fake[i].len;
-        msg_iov[i].iov_base = malloc(msg_iov_fake[i].len);
-        if (msg_iov[i].iov_len != 0 && msg_iov[i].iov_base == NULL) {
-            for (size_t j = 0; j < i; j++)
-                free(msg_iov[j].iov_base);
-            return _ENOMEM;
-        }
-    }
-#endif
 
     // Same iOS-safe wait pattern as sys_recvfrom: avoid unbounded blocking
     // in host recvmsg() so guest signals can always be delivered. But only
@@ -1708,11 +1635,7 @@ int_t sys_recvmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
         if (chunk_size > n)
             chunk_size = n;
         if (chunk_size > 0) {
-#ifdef GUEST_ARM64
             if (user_write(msg_iov_bases[i], msg_iov[i].iov_base, chunk_size))
-#else
-            if (user_write(msg_iov_fake[i].base, msg_iov[i].iov_base, chunk_size))
-#endif
             {
                 err = _EFAULT;
                 n = chunk_size;
@@ -1799,16 +1722,11 @@ int_t sys_recvmsg(fd_t sock_fd, addr_t msghdr_addr, int_t flags) {
     msg_fake.msg_flags = sock_flags_from_real(msg.msg_flags);
 
     // Write back the updated msghdr to guest memory
-#ifdef GUEST_ARM64
     msg_fake64.msg_namelen = msg_fake.msg_namelen;
     msg_fake64.msg_controllen = msg_fake.msg_controllen;
     msg_fake64.msg_flags = msg_fake.msg_flags;
     if (user_put(msghdr_addr, msg_fake64))
         return _EFAULT;
-#else
-    if (user_put(msghdr_addr, msg_fake))
-        return _EFAULT;
-#endif
     return res;
 }
 
@@ -1817,25 +1735,18 @@ struct mmsghdr_ {
     uint_t len;
 };
 
-#ifdef GUEST_ARM64
 struct mmsghdr64_ {
     struct msghdr64_ hdr;
     uint32_t len;
     uint32_t _pad;
 };
-#endif
 
 int_t sys_recvmmsg(fd_t sock_fd, addr_t msg_vec, uint_t vec_len, int_t flags, addr_t timeout_addr) {
     STRACE("recvmmsg(%d, %#x, %d, %d)", sock_fd, msg_vec, vec_len, flags);
     (void) timeout_addr;
     int num_recv = 0;
-#ifdef GUEST_ARM64
     size_t mmsghdr_size = sizeof(struct mmsghdr64_);
     size_t len_offset = offsetof(struct mmsghdr64_, len);
-#else
-    size_t mmsghdr_size = sizeof(struct mmsghdr_);
-    size_t len_offset = offsetof(struct mmsghdr_, len);
-#endif
     for (unsigned i = 0; i < vec_len; i++) {
         addr_t msghdr = msg_vec + i * mmsghdr_size;
         int_t res = sys_recvmsg(sock_fd, msghdr, flags);
@@ -1858,13 +1769,8 @@ int_t sys_recvmmsg(fd_t sock_fd, addr_t msg_vec, uint_t vec_len, int_t flags, ad
 
 int_t sys_sendmmsg(fd_t sock_fd, addr_t msg_vec, uint_t vec_len, int_t flags) {
     int num_sent = 0;
-#ifdef GUEST_ARM64
     size_t mmsghdr_size = sizeof(struct mmsghdr64_);
     size_t len_offset = offsetof(struct mmsghdr64_, len);
-#else
-    size_t mmsghdr_size = sizeof(struct mmsghdr_);
-    size_t len_offset = offsetof(struct mmsghdr_, len);
-#endif
     for (unsigned i = 0; i < vec_len; i++) {
         addr_t msghdr = msg_vec + i * mmsghdr_size;
         int_t res = sys_sendmsg(sock_fd, msghdr, flags);
@@ -2012,52 +1918,3 @@ const struct fd_ops socket_fdops = {
     .ioctl_size = realfs_ioctl_size,
     .ioctl = realfs_ioctl,
 };
-
-#if defined(__GNUC__) && __GNUC__ >= 8
-#pragma GCC diagnostic ignored "-Wcast-function-type"
-#endif
-#if defined(__clang__)
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
-#endif
-static struct socket_call {
-    syscall_t func;
-    int args;
-} socket_calls[] = {
-    {NULL},
-    {(syscall_t) sys_socket, 3},
-    {(syscall_t) sys_bind, 3},
-    {(syscall_t) sys_connect, 3},
-    {(syscall_t) sys_listen, 2},
-    {(syscall_t) sys_accept, 3},
-    {(syscall_t) sys_getsockname, 3},
-    {(syscall_t) sys_getpeername, 3},
-    {(syscall_t) sys_socketpair, 4},
-    {(syscall_t) sys_send, 4}, // send
-    {(syscall_t) sys_recv, 4}, // recv
-    {(syscall_t) sys_sendto, 6},
-    {(syscall_t) sys_recvfrom, 6},
-    {(syscall_t) sys_shutdown, 2},
-    {(syscall_t) sys_setsockopt, 5},
-    {(syscall_t) sys_getsockopt, 5},
-    {(syscall_t) sys_sendmsg, 3},
-    {(syscall_t) sys_recvmsg, 3},
-    {NULL}, // accept4
-    {NULL}, // recvmmsg
-    {(syscall_t) sys_sendmmsg, 4},
-};
-
-int_t sys_socketcall(dword_t call_num, addr_t args_addr) {
-    STRACE("%d ", call_num);
-    if (call_num < 1 || call_num >= sizeof(socket_calls)/sizeof(socket_calls[0]))
-        return _EINVAL;
-    struct socket_call call = socket_calls[call_num];
-    if (call.func == NULL) {
-        FIXME("socketcall %d", call_num);
-        return _ENOSYS;
-    }
-
-    dword_t args[6];
-    if (user_read(args_addr, args, sizeof(dword_t) * call.args))
-        return _EFAULT;
-    return call.func(args[0], args[1], args[2], args[3], args[4], args[5]);
-}

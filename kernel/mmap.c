@@ -75,7 +75,6 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
         if (PGOFFSET(addr) != 0)
             return _EINVAL;
         page = PAGE(addr);
-#ifdef GUEST_ARM64
         // ARM64 has a 48-bit guest page table, so high-address hints are
         // legitimate. Bun/JSC in particular reserves heap/cage regions at
         // high random hints and stores pointers derived from the returned
@@ -90,18 +89,14 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
             addr = 0;
             page = 0;
         }
-#endif
         if (addr != 0 && !(flags & MMAP_FIXED) && !pt_is_hole(current->mem, page, pages))
             addr = 0;
-#ifdef GUEST_ARM64
         if (addr != 0 && !(flags & MMAP_FIXED) && mem_range_has_reservation(current->mem, page, pages))
             addr = 0;
-#endif
         if (addr != 0)
             caller_hint_used = true;
     }
     if (addr == 0) {
-#ifdef GUEST_ARM64
         // Large no-reserve arenas (Bun/JSC heap cages, V8 code ranges, etc.)
         // should live in the 48-bit high address space instead of consuming
         // the scarce low 4GB mmap window. They are lazy reservations, so this
@@ -109,7 +104,6 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
         if ((flags & MMAP_NORESERVE) && pages >= 0x10000)
             page = pt_find_hole_high(current->mem, pages);
         else
-#endif
         page = pt_find_hole(current->mem, pages);
         if (page == BAD_PAGE)
             return _ENOMEM;
@@ -119,10 +113,6 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
         prot |= P_SHARED;
 
     if (flags & MMAP_ANONYMOUS) {
-        // PROT_NONE mappings (guard regions) don't consume real memory,
-        // so don't count them against the anonymous page limit.
-        bool is_prot_none = !(prot & P_READ) && !(prot & P_WRITE) && !(prot & P_EXEC);
-#ifdef GUEST_ARM64
         if ((flags & MMAP_NORESERVE) && pages >= 0x10000) {
             if (!caller_hint_used) {
                 pages_t align_pages = pages;
@@ -137,7 +127,6 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
                 return err;
             return page << PAGE_BITS;
         }
-#endif
         if ((err = pt_map_nothing(current->mem, page, pages, prot)) < 0)
             return err;
     } else {
@@ -155,26 +144,7 @@ static addr_t do_mmap(addr_t addr, uint64_t len, dword_t prot, dword_t flags, fd
     return page << PAGE_BITS;
 }
 
-static addr_t mmap_common(addr_t addr, dword_t len, dword_t prot, dword_t flags, fd_t fd_no, dword_t offset) {
-    STRACE("mmap(0x%x, 0x%x, 0x%x, 0x%x, %d, %d)", addr, len, prot, flags, fd_no, offset);
-    if (len == 0)
-        return _EINVAL;
-    if (prot & ~P_RWX)
-        return _EINVAL;
-    if ((flags & MMAP_PRIVATE) && (flags & MMAP_SHARED))
-        return _EINVAL;
 
-    write_wrlock(&current->mem->lock);
-    addr_t res = do_mmap(addr, len, prot, flags, fd_no, offset);
-    write_wrunlock(&current->mem->lock);
-    return res;
-}
-
-addr_t sys_mmap2(addr_t addr, dword_t len, dword_t prot, dword_t flags, fd_t fd_no, dword_t offset) {
-    return mmap_common(addr, len, prot, flags, fd_no, offset << PAGE_BITS);
-}
-
-#if defined(GUEST_ARM64)
 // ARM64 mmap syscall: offset is passed directly (not shifted like mmap2)
 // and takes 6 direct arguments.
 addr_t sys_mmap64(addr_t addr, addr_t len, dword_t prot, dword_t flags, fd_t fd_no, qword_t offset) {
@@ -191,18 +161,11 @@ addr_t sys_mmap64(addr_t addr, addr_t len, dword_t prot, dword_t flags, fd_t fd_
     write_wrunlock(&current->mem->lock);
     return res;
 }
-#endif
 
 struct mmap_arg_struct {
     dword_t addr, len, prot, flags, fd, offset;
 };
 
-addr_t sys_mmap(addr_t args_addr) {
-    struct mmap_arg_struct args;
-    if (user_get(args_addr, args))
-        return _EFAULT;
-    return mmap_common(args.addr, args.len, args.prot, args.flags, args.fd, args.offset);
-}
 
 int_t sys_munmap(addr_t addr, addr_t len) {
     STRACE("munmap(0x%llx, 0x%llx)", (unsigned long long)addr, (unsigned long long)len);

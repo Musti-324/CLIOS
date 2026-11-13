@@ -46,17 +46,6 @@ static struct itimerspec_ timer_spec_from_real(struct timer_spec spec) {
     return itspec;
 };
 
-dword_t sys_time(addr_t time_out) {
-    dword_t now = time(NULL);
-    if (time_out != 0)
-        if (user_put(time_out, now))
-            return _EFAULT;
-    return now;
-}
-
-dword_t sys_stime(addr_t UNUSED(time)) {
-    return _EPERM;
-}
 
 dword_t sys_clock_gettime(dword_t clock, addr_t tp) {
     STRACE("clock_gettime(%d, 0x%x)", clock, tp);
@@ -163,29 +152,6 @@ int_t sys_setitimer(int_t which, addr_t new_val_addr, addr_t old_val_addr) {
     }
 
     return 0;
-}
-
-uint_t sys_alarm(uint_t seconds) {
-    STRACE("alarm(%d)", seconds);
-    struct timer_spec spec = {
-        .value.tv_sec = seconds,
-    };
-    struct timer_spec old_spec;
-
-    struct tgroup *group = current->group;
-    lock(&group->lock);
-    int err = itimer_set(group, ITIMER_REAL_, spec, &old_spec);
-    unlock(&group->lock);
-    if (err < 0)
-        return err;
-
-    // Round up, and make sure to not return 0 if old_spec is > 0
-    seconds = old_spec.value.tv_sec;
-    if (old_spec.value.tv_nsec >= 500000000)
-        seconds++;
-    if (seconds == 0 && !timespec_is_zero(old_spec.value))
-        seconds = 1;
-    return seconds;
 }
 
 

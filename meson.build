@@ -75,18 +75,15 @@ emu_src = [
 
 gadgets = 'asbestos/guest-arm64/gadgets-' + host_machine.cpu_family()
 emu_src += [
-    'emu/arch/arm64/fpu.c',
     'asbestos/asbestos.c',
     'asbestos/guest-arm64/gen.c',
     'asbestos/guest-arm64/crypto_helpers.c',
-    'asbestos/helpers.c',
     'platform/native_fault.c',
     'platform/native_fault_app.c',
     gadgets+'/entry.S',
     gadgets+'/memory.S',
     gadgets+'/control.S',
     gadgets+'/math.S',
-    gadgets+'/bits.S',
     gadgets+'/crypto.S',
     offsets,
 ]

@@ -309,9 +309,6 @@ dword_t sys_dup3(fd_t f, fd_t new_f, int_t flags) {
     return new_f;
 }
 
-dword_t sys_dup2(fd_t f, fd_t new_f) {
-    return sys_dup3(f, new_f, 0);
-}
 
 int fd_getflags(struct fd *fd) {
     if (fd->ops->getflags)
@@ -423,12 +420,3 @@ dword_t sys_fcntl(fd_t f, dword_t cmd, addr_t arg) {
     }
 }
 
-dword_t sys_fcntl32(fd_t fd, dword_t cmd, addr_t arg) {
-    switch (cmd) {
-        case F_GETLK64_:
-        case F_SETLK64_:
-        case F_SETLKW64_:
-            return _EINVAL;
-    }
-    return sys_fcntl(fd, cmd, arg);
-}

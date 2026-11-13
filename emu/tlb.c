@@ -141,13 +141,11 @@ __no_instrument void *tlb_handle_miss(struct tlb *tlb, addr_t addr, int type) {
     struct tlb_entry *tlb_ent = &tlb->entries[TLB_INDEX(addr)];
     tlb_ent->page = TLB_PAGE(addr);
     tlb_ent->data_minus_addr = (uintptr_t) ptr - TLB_PAGE(addr);
-#ifdef GUEST_ARM64
     // Record the coherence generation this host pointer is valid for. A hit on
     // this entry is only trustworthy while mmu->changes still equals this; if
     // another thread remapped the page (CoW/mmap/munmap) mmu->changes advances
     // and the cached data_minus_addr points at the stale host backing.
     tlb_ent->gen = (uintptr_t) gen;
-#endif
 
     if (type == MEM_WRITE) {
         tlb_ent->page_if_writable = TLB_PAGE(addr);
@@ -164,7 +162,6 @@ __no_instrument void *tlb_handle_miss(struct tlb *tlb, addr_t addr, int type) {
     return (void *) (tlb_ent->data_minus_addr + addr);
 }
 
-#if defined(GUEST_ARM64)
 /*
  * C-based memory access functions for ARM64 guest gadgets.
  * These provide reliable memory access by using the proven C-based TLB code.
@@ -177,155 +174,6 @@ __no_instrument void *tlb_handle_miss(struct tlb *tlb, addr_t addr, int type) {
  * - Returns 0 on success, -1 on segfault (tlb->segfault_addr is set)
  */
 
-
-
-// Load functions - return 0 on success, -1 on segfault
-__no_instrument int c_load64(struct tlb *tlb, addr_t addr, uint64_t *out) {
-    // Handle unaligned access by reading byte-by-byte
-    if ((addr & 7) != 0) {
-        // Unaligned - read each byte separately (little-endian)
-        uint64_t result = 0;
-        for (int i = 0; i < 8; i++) {
-            void *ptr = __tlb_read_ptr(tlb, addr + i);
-            if (ptr == NULL) {
-                return -1;
-            }
-            result |= ((uint64_t)*(uint8_t *)ptr) << (i * 8);
-        }
-        *out = result;
-        return 0;
-    }
-
-    void *ptr = __tlb_read_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;  // segfault_addr already set by tlb_handle_miss
-    }
-    *out = *(uint64_t *)ptr;
-    return 0;
-}
-
-__no_instrument int c_load32(struct tlb *tlb, addr_t addr, uint32_t *out) {
-    void *ptr = __tlb_read_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *out = *(uint32_t *)ptr;
-    return 0;
-}
-
-__no_instrument int c_load16(struct tlb *tlb, addr_t addr, uint16_t *out) {
-    void *ptr = __tlb_read_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *out = *(uint16_t *)ptr;
-    return 0;
-}
-
-__no_instrument int c_load8(struct tlb *tlb, addr_t addr, uint8_t *out) {
-    void *ptr = __tlb_read_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *out = *(uint8_t *)ptr;
-    return 0;
-}
-
-// Sign-extending load functions
-__no_instrument int c_load32_sx(struct tlb *tlb, addr_t addr, int64_t *out) {
-    void *ptr = __tlb_read_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *out = (int64_t)(int32_t)*(uint32_t *)ptr;
-    return 0;
-}
-
-__no_instrument int c_load16_sx64(struct tlb *tlb, addr_t addr, int64_t *out) {
-    void *ptr = __tlb_read_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *out = (int64_t)(int16_t)*(uint16_t *)ptr;
-    return 0;
-}
-
-__no_instrument int c_load16_sx32(struct tlb *tlb, addr_t addr, int32_t *out) {
-    void *ptr = __tlb_read_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *out = (int32_t)(int16_t)*(uint16_t *)ptr;
-    return 0;
-}
-
-__no_instrument int c_load8_sx64(struct tlb *tlb, addr_t addr, int64_t *out) {
-    void *ptr = __tlb_read_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *out = (int64_t)(int8_t)*(uint8_t *)ptr;
-    return 0;
-}
-
-__no_instrument int c_load8_sx32(struct tlb *tlb, addr_t addr, int32_t *out) {
-    void *ptr = __tlb_read_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *out = (int32_t)(int8_t)*(uint8_t *)ptr;
-    return 0;
-}
-
-// Store functions - return 0 on success, -1 on segfault
-__no_instrument int c_store64(struct tlb *tlb, addr_t addr, uint64_t value) {
-    // Handle unaligned access by writing byte-by-byte
-    if ((addr & 7) != 0) {
-        // Unaligned - write each byte separately (little-endian)
-        for (int i = 0; i < 8; i++) {
-            void *ptr = __tlb_write_ptr(tlb, addr + i);
-            if (ptr == NULL) {
-                return -1;
-            }
-            *(uint8_t *)ptr = (value >> (i * 8)) & 0xFF;
-        }
-        return 0;
-    }
-
-    void *ptr = __tlb_write_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;  // segfault_addr already set
-    }
-    *(uint64_t *)ptr = value;
-    return 0;
-}
-
-__no_instrument int c_store32(struct tlb *tlb, addr_t addr, uint32_t value) {
-    void *ptr = __tlb_write_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *(uint32_t *)ptr = value;
-    return 0;
-}
-
-__no_instrument int c_store16(struct tlb *tlb, addr_t addr, uint16_t value) {
-    void *ptr = __tlb_write_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *(uint16_t *)ptr = value;
-    return 0;
-}
-
-__no_instrument int c_store8(struct tlb *tlb, addr_t addr, uint8_t value) {
-    void *ptr = __tlb_write_ptr(tlb, addr);
-    if (ptr == NULL) {
-        return -1;
-    }
-    *(uint8_t *)ptr = value;
-    return 0;
-}
 
 // IC IVAU: the guest modified code at `addr` and is invalidating its icache.
 // Drop any translated blocks for that page so the new code gets retranslated.
@@ -552,33 +400,6 @@ __no_instrument int c_ldp32(struct tlb *tlb, addr_t addr, uint32_t *val1, uint32
     return 0;
 }
 
-__no_instrument int c_stp64(struct tlb *tlb, addr_t addr, uint64_t val1, uint64_t val2) {
-    void *ptr1 = __tlb_write_ptr(tlb, addr);
-    if (ptr1 == NULL) {
-        return -1;
-    }
-    void *ptr2 = __tlb_write_ptr(tlb, addr + 8);
-    if (ptr2 == NULL) {
-        return -1;
-    }
-    *(uint64_t *)ptr1 = val1;
-    *(uint64_t *)ptr2 = val2;
-    return 0;
-}
-
-__no_instrument int c_stp32(struct tlb *tlb, addr_t addr, uint32_t val1, uint32_t val2) {
-    void *ptr1 = __tlb_write_ptr(tlb, addr);
-    if (ptr1 == NULL) {
-        return -1;
-    }
-    void *ptr2 = __tlb_write_ptr(tlb, addr + 4);
-    if (ptr2 == NULL) {
-        return -1;
-    }
-    *(uint32_t *)ptr1 = val1;
-    *(uint32_t *)ptr2 = val2;
-    return 0;
-}
 
 // STXP/STLXP pair compare-and-store helper.
 // Returns 0 on success, 1 on exclusive-store failure, -1 on fault.
@@ -738,4 +559,3 @@ __no_instrument int c_simd_store_interleaved(struct cpu_state *cpu, struct tlb *
     }
     return 0;
 }
-#endif

@@ -12,29 +12,6 @@ struct user_desc {
     unsigned int useable:1;
 };
 
-int task_set_thread_area(struct task *task, addr_t u_info) {
-    struct user_desc info;
-    if (user_get_task(task, u_info, info))
-        return _EFAULT;
-
-    // On a real system, TLS works by creating a special segment pointing to
-    // the TLS buffer. The emulator models this by ignoring attempts to modify
-    // GS directly and adding this base address to memory references using GS.
-    task->cpu.tls_ptr = info.base_addr;
-
-    if (info.entry_number == (unsigned) -1) {
-        info.entry_number = 0xc;
-    }
-
-    if (user_put(u_info, info))
-            return _EFAULT;
-    return 0;
-}
-
-int sys_set_thread_area(addr_t u_info) {
-    STRACE("set_thread_area(0x%x)", u_info);
-    return task_set_thread_area(current, u_info);
-}
 
 int sys_set_tid_address(addr_t tid) {
     current->clear_tid = tid;

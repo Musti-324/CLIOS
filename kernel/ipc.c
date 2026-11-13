@@ -1168,7 +1168,3 @@ int_t sys_shmdt(addr_t shmaddr) {
     return err < 0 ? _EINVAL : 0;
 }
 
-int_t sys_ipc(uint_t call, int_t first, int_t second, int_t third, addr_t ptr, int_t fifth) {
-    STRACE("ipc(%u, %d, %d, %d, %#x, %d)", call, first, second, third, ptr, fifth);
-    return _ENOSYS;
-}

@@ -105,19 +105,6 @@ static dword_t select_common(fd_t nfds, addr_t readfds_addr, addr_t writefds_add
     return err;
 }
 
-dword_t sys_select(fd_t nfds, addr_t readfds_addr, addr_t writefds_addr, addr_t exceptfds_addr, addr_t timeout_addr) {
-    struct timespec timeout_ts = {};
-    struct timespec *timeout_ts_addr = NULL;
-    if (timeout_addr != 0) {
-        struct timeval_ timeout_timeval;
-        if (user_get(timeout_addr, timeout_timeval))
-            return _EFAULT;
-        timeout_ts = convert_timeval(timeout_timeval);
-        timeout_ts_addr = &timeout_ts;
-    }
-    // XXX we do not implement the Linux behavior of writing the timeout with remaining time here.
-    return select_common(nfds, readfds_addr, writefds_addr, exceptfds_addr, timeout_ts_addr, "select");
-}
 
 struct poll_context {
     struct pollfd_ *polls;
@@ -229,7 +216,6 @@ dword_t sys_pselect(fd_t nfds, addr_t readfds_addr, addr_t writefds_addr, addr_t
         addr_t mask_addr;
         dword_t mask_size;
     } sigmask = {0};
-#ifdef GUEST_ARM64
     struct {
         uint64_t mask_addr;
         uint64_t mask_size;
@@ -238,10 +224,6 @@ dword_t sys_pselect(fd_t nfds, addr_t readfds_addr, addr_t writefds_addr, addr_t
         return _EFAULT;
     sigmask.mask_addr = (addr_t) sigmask64.mask_addr;
     sigmask.mask_size = (dword_t) sigmask64.mask_size;
-#else
-    if (sigmask_addr && user_get(sigmask_addr, sigmask))
-        return _EFAULT;
-#endif
     sigset_t_ mask;
 
     if (sigmask.mask_addr != 0) {

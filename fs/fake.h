@@ -11,7 +11,6 @@
 #include "fs/fake-db.h"
 #include "misc.h"
 
-struct fd *fakefs_open_inode(struct mount *mount, ino_t inode);
 
 /* Bind mount API — redirect a fakefs path to an external host directory.
  * Creates a symlink in data/ and auto-creates meta.db entries on access.

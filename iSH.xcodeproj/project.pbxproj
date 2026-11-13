@@ -32,7 +32,6 @@
 		497A08C12963401100B323CF /* AccessibilityFixes.m in Sources */ = {isa = PBXBuildFile; fileRef = 497A08BC2961168400B323CF /* AccessibilityFixes.m */; };
 		497F6CF5254E5EA500C82F46 /* float80-test.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C5A254E5C7E00C82F46 /* float80-test.c */; };
 		497F6CF6254E5EA500C82F46 /* float80.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C66254E5C7F00C82F46 /* float80.c */; };
-		497F6CF7254E5EA500C82F46 /* fpu.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C5D254E5C7E00C82F46 /* fpu.c */; };
 		497F6CF9254E5EA500C82F46 /* memory.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C60254E5C7F00C82F46 /* memory.c */; };
 		497F6CFA254E5EA500C82F46 /* tlb.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C59254E5C7E00C82F46 /* tlb.c */; };
 		497F6CFB254E5EA500C82F46 /* vec.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C64254E5C7F00C82F46 /* vec.c */; };
@@ -65,7 +64,6 @@
 		497F6D16254E5EA600C82F46 /* tty-real.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C05254E5C0E00C82F46 /* tty-real.c */; };
 		497F6D17254E5EA600C82F46 /* tty.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6BE2254E5C0D00C82F46 /* tty.c */; };
 		497F6D18254E5EA600C82F46 /* gen.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C3D254E5C4F00C82F46 /* gen.c */; };
-		497F6D19254E5EA600C82F46 /* helpers.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C3B254E5C4F00C82F46 /* helpers.c */; };
 		497F6D1A254E5EA600C82F46 /* asbestos.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C40254E5C4F00C82F46 /* asbestos.c */; };
 		497F6D1B254E5EA600C82F46 /* offsets.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C3C254E5C4F00C82F46 /* offsets.c */; };
 		497F6D1C254E5EA600C82F46 /* calls.c in Sources */ = {isa = PBXBuildFile; fileRef = 497F6C9F254E5C9800C82F46 /* calls.c */; };
@@ -608,8 +606,6 @@
 		497F6C37254E5C4F00C82F46 /* math.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = math.h; sourceTree = "<group>"; };
 		497F6C38254E5C4F00C82F46 /* gadgets.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gadgets.h; sourceTree = "<group>"; };
 		497F6C39254E5C4F00C82F46 /* string.S */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.asm; path = string.S; sourceTree = "<group>"; };
-		497F6C3A254E5C4F00C82F46 /* bits.S */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.asm; path = bits.S; sourceTree = "<group>"; };
-		497F6C3B254E5C4F00C82F46 /* helpers.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = helpers.c; sourceTree = "<group>"; };
 		497F6C3C254E5C4F00C82F46 /* offsets.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = offsets.c; sourceTree = "<group>"; };
 		497F6C3D254E5C4F00C82F46 /* gen.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = gen.c; sourceTree = "<group>"; };
 		497F6C3E254E5C4F00C82F46 /* gen.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gen.h; sourceTree = "<group>"; };
@@ -621,13 +617,11 @@
 		497F6C5A254E5C7E00C82F46 /* float80-test.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = "float80-test.c"; sourceTree = "<group>"; };
 		497F6C5B254E5C7E00C82F46 /* float80.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = float80.h; sourceTree = "<group>"; };
 		497F6C5C254E5C7E00C82F46 /* interrupt.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = interrupt.h; sourceTree = "<group>"; };
-		497F6C5D254E5C7E00C82F46 /* fpu.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = fpu.c; sourceTree = "<group>"; };
 		497F6C5E254E5C7E00C82F46 /* decode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = decode.h; sourceTree = "<group>"; };
 		497F6C5F254E5C7F00C82F46 /* vec.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = vec.h; sourceTree = "<group>"; };
 		497F6C60254E5C7F00C82F46 /* memory.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = memory.c; sourceTree = "<group>"; };
 		497F6C61254E5C7F00C82F46 /* memory.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = memory.h; sourceTree = "<group>"; };
 		497F6C62254E5C7F00C82F46 /* cpu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = cpu.h; sourceTree = "<group>"; };
-		497F6C63254E5C7F00C82F46 /* fpu.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = fpu.h; sourceTree = "<group>"; };
 		497F6C64254E5C7F00C82F46 /* vec.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = vec.c; sourceTree = "<group>"; };
 		497F6C65254E5C7F00C82F46 /* regid.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = regid.h; sourceTree = "<group>"; };
 		497F6C66254E5C7F00C82F46 /* float80.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = float80.c; sourceTree = "<group>"; };
@@ -979,7 +973,6 @@
 				497F6C37254E5C4F00C82F46 /* math.h */,
 				497F6C38254E5C4F00C82F46 /* gadgets.h */,
 				497F6C39254E5C4F00C82F46 /* string.S */,
-				497F6C3A254E5C4F00C82F46 /* bits.S */,
 			);
 			path = "gadgets-aarch64";
 			sourceTree = "<group>";
@@ -1372,8 +1365,6 @@
 				497F6C5A254E5C7E00C82F46 /* float80-test.c */,
 				497F6C66254E5C7F00C82F46 /* float80.c */,
 				497F6C5B254E5C7E00C82F46 /* float80.h */,
-				497F6C5D254E5C7E00C82F46 /* fpu.c */,
-				497F6C63254E5C7F00C82F46 /* fpu.h */,
 				497F6C5C254E5C7E00C82F46 /* interrupt.h */,
 				497F6C60254E5C7F00C82F46 /* memory.c */,
 				497F6C61254E5C7F00C82F46 /* memory.h */,
@@ -1392,7 +1383,6 @@
 			children = (
 				497F6C40254E5C4F00C82F46 /* asbestos.c */,
 				497F6C3D254E5C4F00C82F46 /* gen.c */,
-				497F6C3B254E5C4F00C82F46 /* helpers.c */,
 				497F6C3C254E5C4F00C82F46 /* offsets.c */,
 				497F6C41254E5C4F00C82F46 /* asbestos.h */,
 				497F6C3F254E5C4F00C82F46 /* frame.h */,
@@ -2416,7 +2406,6 @@
 			files = (
 				497F6CF5254E5EA500C82F46 /* float80-test.c in Sources */,
 				497F6CF6254E5EA500C82F46 /* float80.c in Sources */,
-				497F6CF7254E5EA500C82F46 /* fpu.c in Sources */,
 				497F6CF9254E5EA500C82F46 /* memory.c in Sources */,
 				497F6CFA254E5EA500C82F46 /* tlb.c in Sources */,
 				497F6CFB254E5EA500C82F46 /* vec.c in Sources */,
@@ -2450,7 +2439,6 @@
 				497F6D16254E5EA600C82F46 /* tty-real.c in Sources */,
 				497F6D17254E5EA600C82F46 /* tty.c in Sources */,
 				497F6D18254E5EA600C82F46 /* gen.c in Sources */,
-				497F6D19254E5EA600C82F46 /* helpers.c in Sources */,
 				497F6D1A254E5EA600C82F46 /* asbestos.c in Sources */,
 				497F6D1B254E5EA600C82F46 /* offsets.c in Sources */,
 				497F6D1C254E5EA600C82F46 /* calls.c in Sources */,

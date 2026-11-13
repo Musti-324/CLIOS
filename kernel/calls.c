@@ -290,8 +290,6 @@ void handle_interrupt(int interrupt) {
                 // Rate-limit V8 zone fix recoveries to prevent cascading
                 static _Thread_local int v8_zone_fix_count = 0;
                 static _Thread_local int v8_burst_count = 0;    // consecutive recoveries
-                static _Thread_local uint64_t v8_last_recovery_pc = 0;
-                (void)0;
 
                 // Detect faults on corrupt/sentinel pointers.
                 // mem_ptr already returned NULL, so the address is truly unmapped.
@@ -578,7 +576,7 @@ void handle_interrupt(int interrupt) {
             // that work on native Linux (because adjacent heap pages are always
             // mapped) but crash in iSH (because we have unmapped gaps).
             // Rate-limited to prevent infinite loops on true null-pointer derefs.
-#if defined(GUEST_ARM64) && defined(ENABLE_ARM64_READ_FAULT_RECOVERY)
+#ifdef ENABLE_ARM64_READ_FAULT_RECOVERY
             if (!cpu->segfault_was_write && cpu->segfault_addr >= 0x1000) {
                 static _Thread_local int read_recovery_count = 0;
                 static _Thread_local addr_t last_recovery_addr = 0;

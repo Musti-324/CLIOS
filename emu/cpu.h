@@ -11,9 +11,6 @@
 #endif
 
 // Include architecture-specific CPU state definition
-#if !defined(GUEST_ARM64)
-#error "Only the ARM64 guest backend is supported"
-#endif
 #include "emu/arch/arm64/cpu.h"
 
 // Common CPU interface

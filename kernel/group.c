@@ -55,9 +55,6 @@ out:
     return err;
 }
 
-dword_t sys_setpgrp() {
-    return sys_setpgid(0, 0);
-}
 
 pid_t_ sys_getpgid(pid_t_ pid) {
     STRACE("getpgid(%d)", pid);
@@ -72,9 +69,6 @@ pid_t_ sys_getpgid(pid_t_ pid) {
     pid = task->group->pgid;
     unlock(&pids_lock);
     return pid;
-}
-pid_t_ sys_getpgrp() {
-    return sys_getpgid(0);
 }
 
 // Must lock pids_lock and task->group->lock

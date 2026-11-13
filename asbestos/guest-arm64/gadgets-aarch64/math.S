@@ -7351,34 +7351,6 @@ make_fp_across fminnmv, fminnmv
     str x11, [x9]
     str x12, [x9, #8]
 
-#if 0  // Debug: detect all-ones pattern
-    // Check if this is loading all 1s (both lo and hi are -1)
-    adds xzr, x11, #1       // check if lo == -1
-    b.ne .Lldr_simd_q_done
-    adds xzr, x12, #1       // check if hi == -1
-    b.ne .Lldr_simd_q_done
-    // Both are all 1s - call helper
-    sub sp, sp, #96
-    stp x0, x1, [sp]
-    stp x2, x3, [sp, #16]
-    stp x11, x12, [sp, #32]
-    stp x23, x24, [sp, #48]
-    str x30, [sp, #64]
-    stp _cpu, _pc, [sp, #72]
-    mov x0, x23             // rd
-    mov x1, x11             // lo
-    mov x2, x12             // hi
-    mov x3, #3              // op_type = LDR_Q
-    bl NAME(helper_check_all_ones)
-    ldp x0, x1, [sp]
-    ldp x2, x3, [sp, #16]
-    ldp x11, x12, [sp, #32]
-    ldp x23, x24, [sp, #48]
-    ldr x30, [sp, #64]
-    ldp _cpu, _pc, [sp, #72]
-    add sp, sp, #96
-.Lldr_simd_q_done:
-#endif
 
     mov _addr, x24              // Restore guest address
     gret
@@ -7650,34 +7622,6 @@ movi_really_zero:
     str x10, [x12]
     str x11, [x12, #8]
 
-#if 0  // Debug: detect all-ones pattern
-    // Check if this is setting all 1s (both lo and hi are -1)
-    adds xzr, x10, #1       // check if lo == -1
-    b.ne .Lset_vec_imm_done
-    adds xzr, x11, #1       // check if hi == -1
-    b.ne .Lset_vec_imm_done
-    // Both are all 1s - call helper
-    sub sp, sp, #96
-    stp x0, x1, [sp]
-    stp x2, x3, [sp, #16]
-    stp x9, x10, [sp, #32]
-    stp x11, x12, [sp, #48]
-    str x30, [sp, #64]
-    stp _cpu, _pc, [sp, #72]
-    mov x0, x9              // rd
-    mov x1, x10             // lo
-    mov x2, x11             // hi
-    mov x3, #1              // op_type = SET_VEC_IMM
-    bl NAME(helper_check_all_ones)
-    ldp x0, x1, [sp]
-    ldp x2, x3, [sp, #16]
-    ldp x9, x10, [sp, #32]
-    ldp x11, x12, [sp, #48]
-    ldr x30, [sp, #64]
-    ldp _cpu, _pc, [sp, #72]
-    add sp, sp, #96
-.Lset_vec_imm_done:
-#endif
     gret
 
 /*
@@ -12416,30 +12360,6 @@ make_fcvt_to_int fcvtau, fcvtau, fcvtau, fcvtau, fcvtau
 1:  mov x14, #0
 2:
 
-#if 0 // DEBUG FMOV GPR->FP
-    stp x0, x1, [sp, #-96]!
-    stp x2, x3, [sp, #16]
-    stp x9, x10, [sp, #32]
-    stp x11, x14, [sp, #48]
-    str x30, [sp, #64]
-    stp _cpu, _pc, [sp, #72]
-
-    mov x0, #6          // op = FMOV_G2F
-    mov x1, x9          // rd (fp)
-    mov x2, x10         // rn (gpr)
-    mov x3, #0          // rm (unused)
-    mov x4, x14         // val1 (gpr value)
-    mov x5, x11         // val2 (type)
-    bl NAME(helper_debug_fp)
-
-    ldp x0, x1, [sp]
-    ldp x2, x3, [sp, #16]
-    ldp x9, x10, [sp, #32]
-    ldp x11, x14, [sp, #48]
-    ldr x30, [sp, #64]
-    ldp _cpu, _pc, [sp, #72]
-    add sp, sp, #96
-#endif
 
     // Store to FP register as bits (no conversion)
     add x15, _cpu, #CPU_fp
@@ -12812,37 +12732,6 @@ make_fcvt_to_int fcvtau, fcvtau, fcvtau, fcvtau, fcvtau
     ldr d0, [x13]
     ldr d1, [x15]
 
-#if 0 // DEBUG FADD double
-    stp x0, x1, [sp, #-128]!
-    stp x2, x3, [sp, #16]
-    stp x9, x10, [sp, #32]
-    stp x11, x12, [sp, #48]
-    stp x13, x15, [sp, #64]
-    str x30, [sp, #80]
-    str d0, [sp, #88]
-    str d1, [sp, #96]
-    stp _cpu, _pc, [sp, #104]
-
-    // Print debug info: op=2 (FADD), rd=x9, rn=x10, rm=x11, val1=d0, val2=d1
-    mov x0, #2          // op = FADD
-    mov x1, x9          // rd
-    mov x2, x10         // rn
-    mov x3, x11         // rm
-    fmov x4, d0         // val1
-    fmov x5, d1         // val2
-    bl NAME(helper_debug_fp)
-
-    ldp x0, x1, [sp]
-    ldp x2, x3, [sp, #16]
-    ldp x9, x10, [sp, #32]
-    ldp x11, x12, [sp, #48]
-    ldp x13, x15, [sp, #64]
-    ldr x30, [sp, #80]
-    ldr d0, [sp, #88]
-    ldr d1, [sp, #96]
-    ldp _cpu, _pc, [sp, #104]
-    add sp, sp, #128
-#endif
 
     fadd d0, d0, d1
     b .Lfadd_store
@@ -12850,39 +12739,6 @@ make_fcvt_to_int fcvtau, fcvtau, fcvtau, fcvtau, fcvtau
     ldr s0, [x13]
     ldr s1, [x15]
 
-#if 0 // DEBUG FADD single
-    stp x0, x1, [sp, #-128]!
-    stp x2, x3, [sp, #16]
-    stp x9, x10, [sp, #32]
-    stp x11, x12, [sp, #48]
-    stp x13, x15, [sp, #64]
-    str x30, [sp, #80]
-    str s0, [sp, #88]
-    str s1, [sp, #96]
-    stp _cpu, _pc, [sp, #104]
-
-    // Print debug info for single
-    mov x0, #2          // op = FADD
-    mov x1, x9          // rd
-    mov x2, x10         // rn
-    mov x3, x11         // rm
-    fmov w4, s0
-    mov x4, x4          // val1 (bits)
-    fmov w5, s1
-    mov x5, x5          // val2 (bits)
-    bl NAME(helper_debug_fp)
-
-    ldp x0, x1, [sp]
-    ldp x2, x3, [sp, #16]
-    ldp x9, x10, [sp, #32]
-    ldp x11, x12, [sp, #48]
-    ldp x13, x15, [sp, #64]
-    ldr x30, [sp, #80]
-    ldr s0, [sp, #88]
-    ldr s1, [sp, #96]
-    ldp _cpu, _pc, [sp, #104]
-    add sp, sp, #128
-#endif
 
     fadd s0, s0, s1
 

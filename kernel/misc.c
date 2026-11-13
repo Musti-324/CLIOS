@@ -26,10 +26,6 @@ int_t sys_prctl(dword_t option, addr_t arg2, addr_t UNUSED(arg3), addr_t UNUSED(
     }
 }
 
-int_t sys_arch_prctl(int_t code, addr_t addr) {
-    STRACE("arch_prctl(%#x, %#x)", code, addr);
-    return _EINVAL;
-}
 
 #define MEMBARRIER_CMD_QUERY 0
 #define MEMBARRIER_CMD_GLOBAL (1 << 0)

@@ -119,23 +119,6 @@ static inline void arm64_set_nzcv(struct cpu_state *cpu, uint32_t nzcv_val) {
     cpu->vf = (uint8_t)((nzcv_val >> 28) & 1);
 }
 
-// Sync individual flags to combined nzcv field
-static inline void arm64_sync_nzcv(struct cpu_state *cpu) {
-    cpu->nzcv = ((cpu->nf & 1) << 31) | ((cpu->zf & 1) << 30) |
-                ((cpu->cf & 1) << 29) | ((cpu->vf & 1) << 28);
-}
-
-// Collapse flags (no-op for canonical ARM64 NZCV state)
-static inline void collapse_flags(struct cpu_state *cpu) {
-    // ARM64 flags are always in their canonical form
-    (void)cpu;
-}
-
-// Expand flags (no-op for canonical ARM64 NZCV state)
-static inline void expand_flags(struct cpu_state *cpu) {
-    // ARM64 flags are always in their canonical form
-    (void)cpu;
-}
 
 // Register indices
 enum arm64_reg {
