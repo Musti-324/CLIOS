@@ -186,9 +186,6 @@ static NSString *const HANDLERS[] = {@"syncFocus", @"focus", @"newScrollHeight",
     NSAssert(NSThread.isMainThread, @"This method needs to be called on the main thread");
     UserPreferences *prefs = [UserPreferences shared];
     Palette *palette = prefs.palette;
-    if (self.overrideAppearance != OverrideAppearanceNone) {
-        palette = self.overrideAppearance == OverrideAppearanceLight ? prefs.theme.lightPalette : prefs.theme.darkPalette;
-    }
     UIColor *backgroundColor = [[UIColor alloc] ish_initWithHexString:palette.backgroundColor];
     self.backgroundColor = backgroundColor;
     self.scrollbarView.backgroundColor = backgroundColor;
@@ -217,11 +214,6 @@ static NSString *const HANDLERS[] = {@"syncFocus", @"focus", @"newScrollHeight",
 
 - (void)setOverrideFontSize:(CGFloat)overrideFontSize {
     _overrideFontSize = overrideFontSize;
-    [self _updateStyle];
-}
-
-- (void)setOverrideAppearance:(enum OverrideAppearance)overrideAppearance {
-    _overrideAppearance = overrideAppearance;
     [self _updateStyle];
 }
 

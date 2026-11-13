@@ -138,6 +138,16 @@ char *get_documents_directory_impl(void) {
     return  representation;
 }
 
+- (BOOL)isDark {
+    UIColor *background = [[UIColor alloc] ish_initWithHexString:self.backgroundColor];
+    CGFloat red, green, blue, alpha;
+    if (![background getRed:&red green:&green blue:&blue alpha:&alpha]) {
+        return NO;
+    }
+    // Perceived brightness (ITU-R BT.601 luma).
+    return 0.299 * red + 0.587 * green + 0.114 * blue < 0.5;
+}
+
 @end
 
 @interface ThemeAppearance ()

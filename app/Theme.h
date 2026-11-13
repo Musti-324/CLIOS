@@ -14,6 +14,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property(readonly) NSString *backgroundColor;
 @property(readonly, nullable) NSString *cursorColor;
 @property(readonly, nullable) NSArray<NSString *> *colorPaletteOverrides;
+// Whether the background is dark enough that this palette reads as a dark scheme.
+@property(readonly) BOOL isDark;
 
 - (instancetype)initWithForegroundColor:(nonnull NSString *)foregroundColor backgroundColor:(nonnull NSString *)backgroundColor cursorColor:(nullable NSString *)cursorColor colorPaletteOverrides:(nullable NSArray<NSString *> *)colorPaletteOverrides;
 @end

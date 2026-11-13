@@ -103,7 +103,7 @@ enum {
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     switch (section) {
-        case PreviewSection: return 2;
+        case PreviewSection: return 1;
         case MainSection: return 3;
         case ColorSchemeSection: return 3;
         case CursorSection: return 2;
@@ -124,14 +124,13 @@ enum {
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     switch (section) {
-        case PreviewSection: return @"Change the color scheme used for the preview.";
         default: return nil;
     }
 }
 
 - (NSString *)reuseIdentifierForIndexPath:(NSIndexPath *)indexPath {
     switch (indexPath.section) {
-        case PreviewSection: return @[@"Preview", @"Color Scheme Preview"][indexPath.row];
+        case PreviewSection: return @"Preview";
         case MainSection: return @[@"Theme Name", @"Font", @"Font Size"][indexPath.row];
         case ColorSchemeSection: return @"Color Scheme";
         case CursorSection: return @[@"Cursor Style", @"Blink Cursor"][indexPath.row];
@@ -155,21 +154,10 @@ enum {
     
     switch (indexPath.section) {
         case PreviewSection:
-            switch (indexPath.row) {
-                case 0:
-                    _terminalView = [cell viewWithTag:1];
-                    _terminalView.userInteractionEnabled = NO;
-                    [self updatePreviewBackground];
-                    _terminalView.terminal = _terminal;
-                    break;
-                case 1: {
-                    UISegmentedControl *segmentedControl = [cell viewWithTag:1];
-                    [segmentedControl addTarget:self action:@selector(changePreviewTheme:) forControlEvents:UIControlEventValueChanged];
-                    [self changePreviewTheme:segmentedControl];
-                    cell.selectionStyle = UITableViewCellSelectionStyleNone;
-                    break;
-                }
-            }
+            _terminalView = [cell viewWithTag:1];
+            _terminalView.userInteractionEnabled = NO;
+            [self updatePreviewBackground];
+            _terminalView.terminal = _terminal;
             break;
             
         case MainSection:
@@ -259,17 +247,7 @@ enum {
         return;
     }
     Palette *palette = UserPreferences.shared.palette;
-    if (_terminalView.overrideAppearance == OverrideAppearanceLight) {
-        palette = UserPreferences.shared.theme.lightPalette;
-    } else if (_terminalView.overrideAppearance == OverrideAppearanceDark) {
-        palette = UserPreferences.shared.theme.darkPalette;
-    }
     _terminalView.backgroundColor = [[UIColor alloc] ish_initWithHexString:palette.backgroundColor];
-}
-
-- (void)changePreviewTheme:(UISegmentedControl *)sender {
-    _terminalView.overrideAppearance = sender.selectedSegmentIndex ? OverrideAppearanceDark : OverrideAppearanceLight;
-    [self updatePreviewBackground];
 }
 
 - (void)selectFont:(id)sender {

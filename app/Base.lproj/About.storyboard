@@ -574,28 +574,6 @@
                                     </constraints>
                                 </tableViewCellContentView>
                             </tableViewCell>
-                            <tableViewCell clipsSubviews="YES" contentMode="scaleToFill" preservesSuperviewLayoutMargins="YES" selectionStyle="default" indentationWidth="10" reuseIdentifier="Color Scheme Preview" id="7Dn-Oz-2zq">
-                                <rect key="frame" x="0.0" y="99" width="320" height="43.5"/>
-                                <autoresizingMask key="autoresizingMask"/>
-                                <tableViewCellContentView key="contentView" opaque="NO" clipsSubviews="YES" multipleTouchEnabled="YES" contentMode="center" preservesSuperviewLayoutMargins="YES" insetsLayoutMarginsFromSafeArea="NO" tableViewCell="7Dn-Oz-2zq" id="jj6-87-x30">
-                                    <rect key="frame" x="0.0" y="0.0" width="320" height="43.5"/>
-                                    <autoresizingMask key="autoresizingMask"/>
-                                    <subviews>
-                                        <segmentedControl opaque="NO" tag="1" contentMode="scaleToFill" contentHorizontalAlignment="left" contentVerticalAlignment="top" segmentControlStyle="plain" selectedSegmentIndex="0" translatesAutoresizingMaskIntoConstraints="NO" id="aLu-k6-NCW">
-                                            <rect key="frame" x="20" y="6.5" width="280" height="32"/>
-                                            <segments>
-                                                <segment title="Light"/>
-                                                <segment title="Dark"/>
-                                            </segments>
-                                        </segmentedControl>
-                                    </subviews>
-                                    <constraints>
-                                        <constraint firstAttribute="trailing" secondItem="aLu-k6-NCW" secondAttribute="trailing" constant="20" symbolic="YES" id="ZsL-av-hVD"/>
-                                        <constraint firstItem="aLu-k6-NCW" firstAttribute="centerY" secondItem="jj6-87-x30" secondAttribute="centerY" id="e45-2q-GEK"/>
-                                        <constraint firstItem="aLu-k6-NCW" firstAttribute="leading" secondItem="jj6-87-x30" secondAttribute="leading" constant="20" symbolic="YES" id="rgN-F3-Eni"/>
-                                    </constraints>
-                                </tableViewCellContentView>
-                            </tableViewCell>
                             <tableViewCell clipsSubviews="YES" contentMode="scaleToFill" preservesSuperviewLayoutMargins="YES" selectionStyle="default" accessoryType="disclosureIndicator" indentationWidth="10" reuseIdentifier="Theme Name" textLabel="6jC-28-tzS" detailTextLabel="5o9-8G-nwe" style="IBUITableViewCellStyleValue1" id="4dw-XR-CAv">
                                 <rect key="frame" x="0.0" y="142.5" width="320" height="43.5"/>
                                 <autoresizingMask key="autoresizingMask"/>

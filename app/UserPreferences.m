@@ -431,17 +431,49 @@ bool (*remove_user_default)(const char *name);
     [self _setUserTheme:[_defaults valueForKey:kPreferenceThemeKey]];
 }
 
-- (Palette *)palette {
+- (BOOL)wantsDarkColorScheme {
     switch (self.colorScheme) {
         case ColorSchemeMatchSystem:
-            return self.class.systemThemeIsDark ? self.theme.darkPalette : self.theme.lightPalette;
+            return self.class.systemThemeIsDark;
         case ColorSchemeAlwaysDark:
-            return self.theme.darkPalette;
+            return YES;
         default:
             NSAssert(NO, @"invalid color scheme");
         case ColorSchemeAlwaysLight:
-            return self.theme.lightPalette;
+            return NO;
     }
+}
+
+// The theme whose colors are shown when the color scheme resolves to light or
+// dark. Most themes ship a single palette, so an explicit Light or Dark choice
+// that the selected theme can't satisfy falls back to the built-in "light" or
+// "dark" theme instead of being silently ignored. Match System keeps the
+// selected theme as designed.
+- (Theme *)themeForDarkColorScheme:(BOOL)dark {
+    Theme *theme = self.theme;
+    if (self.colorScheme == ColorSchemeMatchSystem) {
+        return theme;
+    }
+    Palette *palette = dark ? theme.darkPalette : theme.lightPalette;
+    if (palette.isDark == dark) {
+        return theme;
+    }
+    NSString *fallbackName = dark ? @"dark" : @"light";
+    for (Theme *fallback in Theme.defaultThemes) {
+        if ([fallback.name isEqualToString:fallbackName]) {
+            return fallback;
+        }
+    }
+    return theme;
+}
+
+- (Palette *)paletteForDarkColorScheme:(BOOL)dark {
+    Theme *theme = [self themeForDarkColorScheme:dark];
+    return dark ? theme.darkPalette : theme.lightPalette;
+}
+
+- (Palette *)palette {
+    return [self paletteForDarkColorScheme:self.wantsDarkColorScheme];
 }
 
 // MARK: shouldDisableDimming
@@ -612,7 +644,9 @@ bool (*remove_user_default)(const char *name);
 }
 
 - (BOOL)requestingDarkAppearance {
-    return (self.class.systemThemeIsDark && !self.theme.appearance.darkOverride) || (!self.class.systemThemeIsDark && self.theme.appearance.lightOverride);
+    BOOL dark = self.wantsDarkColorScheme;
+    ThemeAppearance *appearance = [self themeForDarkColorScheme:dark].appearance;
+    return (dark && !appearance.darkOverride) || (!dark && appearance.lightOverride);
 }
 
 - (UIUserInterfaceStyle)userInterfaceStyle {
