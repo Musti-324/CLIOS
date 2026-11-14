@@ -33,7 +33,7 @@ struct rowcol {
 }
 @end
 
-@interface TerminalView () <UIEditMenuInteractionDelegate>
+@interface TerminalView () <UIEditMenuInteractionDelegate, UIGestureRecognizerDelegate>
 
 @property (nonatomic) NSMutableArray<UIKeyCommand *> *keyCommands;
 @property ScrollbarView *scrollbarView;
@@ -582,6 +582,29 @@ static NSString *const HANDLERS[] = {@"syncFocus", @"focus", @"newScrollHeight",
 }
 
 #pragma mark Hardware Keyboard
+
+// UIKit attaches its hardware-keyboard dictation shortcuts (pressing Control
+// twice, the dictation key) to the focused text input, which is this view. A
+// terminal user presses Control all the time, so the shortcut fires by
+// accident: dictation takes keyboard focus, the extra-keys bar disappears and
+// nothing typed reaches the terminal until the app is backgrounded.
+//
+// The terminal owns the hardware keyboard, so it refuses every key-press
+// gesture added here. UIKit only asks a view about gestures that involve
+// touches; for key presses it asks just the delegate, so this view becomes the
+// delegate of recognizers that arrive without one. Touch gestures (ours, the
+// edit menu's) don't listen for presses and are unaffected.
+- (void)addGestureRecognizer:(UIGestureRecognizer *)gestureRecognizer {
+    [super addGestureRecognizer:gestureRecognizer];
+    if (gestureRecognizer.delegate == nil)
+        gestureRecognizer.delegate = self;
+}
+
+- (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gestureRecognizer {
+    if (gestureRecognizer.view == self && gestureRecognizer.allowedPressTypes.count > 0)
+        return NO;
+    return [super gestureRecognizerShouldBegin:gestureRecognizer];
+}
 
 - (void)handleKeyCommand:(UIKeyCommand *)command {
     NSString *key = command.input;
