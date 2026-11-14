@@ -20,7 +20,7 @@ void do_uname(struct uname *uts) {
     memset(uts, 0, sizeof(struct uname));
     strcpy(uts->system, "Linux");
     strcpy(uts->hostname, hostname);
-    strcpy(uts->release, "4.20.69-linuxkit");
+    strcpy(uts->release, "4.20.69-clios");
     snprintf(uts->version, sizeof(uts->version), "%s %s %s", uname_version, __DATE__, __TIME__);
     strcpy(uts->arch, "aarch64");
     strcpy(uts->domain, "(none)");

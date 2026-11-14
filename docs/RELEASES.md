@@ -55,7 +55,7 @@ Create the tag on the intended committed revision:
 
 ```sh
 git push origin master
-git tag -a v2.5.2 -m 'ios-linuxkit 2.5.2'
+git tag -a v2.5.2 -m 'CLIOS 2.5.2'
 git push origin v2.5.2
 git rev-list -n 1 v2.5.2
 git ls-remote origin refs/tags/v2.5.2 'refs/tags/v2.5.2^{}'

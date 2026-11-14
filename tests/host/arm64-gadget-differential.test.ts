@@ -10,7 +10,7 @@ for (const [name, assembly, marker] of [
     ['integer-differential', 'integer-differential', 'INTEGER_DIFFERENTIAL'],
     ['simd-memory-differential', 'neon-differential', 'SIMD_MEMORY_DIFFERENTIAL'],
 ]) test.skipIf(!enabled)(`${name} matches native Apple Silicon instructions`, () => {
-    const stage = mkdtempSync(join(tmpdir(), 'linuxkit-gadget-oracle-'));
+    const stage = mkdtempSync(join(tmpdir(), 'clios-gadget-oracle-'));
     try {
         const binary = join(stage, name);
         const compile = Bun.spawnSync(['clang', '-O2', '-std=gnu11', '-Wall', '-Wextra', '-Werror',

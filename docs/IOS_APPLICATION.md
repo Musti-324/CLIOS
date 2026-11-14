@@ -24,9 +24,9 @@ Change the upstream default `ROOT_BUNDLE_IDENTIFIER` in `app/iSH.xcconfig` to an
 
 | Scheme | Product | Purpose |
 |---|---|---|
-| `iSH-ARM64` | `LinuxKit.app` | Main reference application. |
+| `iSH-ARM64` | `CLIOS.app` | Main reference application. |
 | `iSH-ARM64-ffmpeg` | `iSH ARM64 ffmpeg.app` | Test target that defines `ISH_FFMPEG_TEST=1` and registers the built-in fake FFmpeg handler. |
-| `iSH-ARM64-AOT-Bootstrap` | `LinuxKit AOT Bootstrap.app` | Experimental acceleration using static translations, with runtime code generation disabled. |
+| `iSH-ARM64-AOT-Bootstrap` | `CLIOS AOT Bootstrap.app` | Experimental acceleration using static translations, with runtime code generation disabled. |
 
 The main product name comes from `app/App.xcconfig`. Packaging must use the evaluated
 `PRODUCT_NAME`, `EXECUTABLE_NAME` and bundle identifiers from Xcode build settings.
@@ -144,7 +144,7 @@ Darwin builds can also map a guest command to a host executable through the `-n 
 
 `fastlane/Fastfile` is inherited from upstream iSH. Its `build` lane selects scheme `iSH`, and `upload_build` publishes to upstream identifiers and `ish-app/ish`. Those lanes do not target the `iSH-ARM64` schemes without modification.
 
-Do not use the inherited upload lane for this fork until its scheme, bundle identifiers, signing repository, TestFlight groups and GitHub repository are changed and reviewed. The generated `fastlane/README.md` only lists lane names; it is not a release runbook for `ios-linuxkit`.
+Do not use the inherited upload lane for this fork until its scheme, bundle identifiers, signing repository, TestFlight groups and GitHub repository are changed and reviewed. The generated `fastlane/README.md` only lists lane names; it is not a release runbook for `CLIOS`.
 
 ## Device checks
 

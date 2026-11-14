@@ -8,7 +8,7 @@ if (process.platform !== 'darwin' || process.arch !== 'arm64')
     throw Error('Apple native recovery tests require an Apple Silicon Mac');
 const root = resolve(import.meta.dir, '../../..');
 const build = resolve(process.env.BUILD_DIR || 'build-arm64-native-noemit');
-const out = resolve(process.env.EVIDENCE_DIR || '/tmp/ios-linuxkit-apple-aot-tests');
+const out = resolve(process.env.EVIDENCE_DIR || '/tmp/clios-apple-aot-tests');
 mkdirSync(out, { recursive: true });
 for (const opt of ['-O0', '-O2']) {
     const flags = ['-arch', 'arm64', '-std=gnu11', opt, '-g', '-DGUEST_ARM64=1',

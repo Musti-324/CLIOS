@@ -1,10 +1,10 @@
-# ios-linuxkit
+# CLIOS
 
-![ios-linuxkit icon](docs/icon-256.png)
+![CLIOS icon](docs/icon-256.png)
 
-`ios-linuxkit` runs an AArch64 Linux userland inside an iOS app and as a command-line process on an AArch64 Linux host. It derives from [iSH](https://ish.app/) and uses iSH's userspace kernel, filesystems and Asbestos threaded-code interpreter.
+`CLIOS` runs an AArch64 Linux userland inside an iOS app and as a command-line process on an AArch64 Linux host. It is a fork of [ios-linuxkit](https://github.com/rcarmo/ios-linuxkit), which derives from [iSH](https://ish.app/) and uses iSH's userspace kernel, filesystems and Asbestos threaded-code interpreter.
 
-**Read the announcement: [Announcing ios-linuxkit: Linux on iPad, the Hard Way](https://taoofmac.com/space/blog/2026/05/16/1130).**
+**Read the original ios-linuxkit announcement: [Announcing ios-linuxkit: Linux on iPad, the Hard Way](https://taoofmac.com/space/blog/2026/05/16/1130).**
 
 ## Why this exists
 
@@ -45,8 +45,8 @@ sudo apt install \
 Clone the submodules and build:
 
 ```sh
-git clone --recurse-submodules https://github.com/rcarmo/ios-linuxkit.git
-cd ios-linuxkit
+git clone --recurse-submodules https://github.com/Musti-324/CLIOS.git
+cd CLIOS
 CC=clang make build-arm64-linux
 ```
 
@@ -168,4 +168,4 @@ Dated benchmark, workload, release and audit records live under [`docs/reports/`
 
 ## Licence and provenance
 
-`ios-linuxkit` contains work derived from [ish-app/ish](https://github.com/ish-app/ish) and its dependencies. See [LICENSE.md](LICENSE.md), [LICENSE.IOS](LICENSE.IOS), the [preserved May 2026 README](docs/legacy/ORIGINAL_ISH_README_2026-05.md), and [`docs/legacy/`](docs/legacy/).
+`CLIOS` contains work derived from [rcarmo/ios-linuxkit](https://github.com/rcarmo/ios-linuxkit), [ish-app/ish](https://github.com/ish-app/ish) and its dependencies. See [LICENSE.md](LICENSE.md), [LICENSE.IOS](LICENSE.IOS), the [preserved May 2026 README](docs/legacy/ORIGINAL_ISH_README_2026-05.md), and [`docs/legacy/`](docs/legacy/).

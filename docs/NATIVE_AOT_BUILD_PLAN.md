@@ -47,8 +47,8 @@ upstream image generator; Bun runs orchestration and tests. Hardware-PC checks
 need GDB. Optional profiling needs `perf` and permission to sample user events.
 
 ```sh
-git clone --recurse-submodules https://github.com/rcarmo/ios-linuxkit.git
-cd ios-linuxkit
+git clone --recurse-submodules https://github.com/Musti-324/CLIOS.git
+cd CLIOS
 git checkout v2.4.1
 git submodule update --init --recursive
 CC=clang make build-arm64-linux RELEASE_BUILD_DIR=build-arm64-gadget

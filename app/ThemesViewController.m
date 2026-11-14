@@ -136,7 +136,7 @@ enum {
         case DefaultSection:
             return self->_preferUserTheme ? [NSString stringWithFormat:@"The default theme \"%@\" is currently being overridden by a user theme.", self->_theme.name] : nil;
         case ImportSection:
-            return @"User themes are stored in the ios-linuxkit documents directory, under the \"themes\" folder. You can access them inside the shell by running\n\n# mount -t real \"$(cat /proc/ish/documents)/themes\" [folder]\n\nand manipulating them from there.";
+            return @"User themes are stored in the CLIOS documents directory, under the \"themes\" folder. You can access them inside the shell by running\n\n# mount -t real \"$(cat /proc/ish/documents)/themes\" [folder]\n\nand manipulating them from there.";
         default:
             return nil;
     }

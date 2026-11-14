@@ -7,7 +7,7 @@ const ish = process.env.ISH_BIN, root = process.env.ROOTFS;
 const build = process.env.BUILD_DIR || (ish ? dirname(ish) : '');
 test.skipIf(!build || process.platform !== 'darwin' || process.arch !== 'arm64')(
     'Darwin unlink returns Linux directory errors without changing permissions or following symlinks', () => {
-    const stage = mkdtempSync(join(tmpdir(), 'linuxkit-realfs-unlink-'));
+    const stage = mkdtempSync(join(tmpdir(), 'clios-realfs-unlink-'));
     try {
         const binary = join(stage, 'unlink');
         const compile = Bun.spawnSync(['clang', '-O2', '-std=gnu11', '-Wall', '-Wextra', '-Werror',

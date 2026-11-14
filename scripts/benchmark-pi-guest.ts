@@ -10,7 +10,7 @@ if (!ishArg || !rootArg || !['offline', 'copilot'].includes(mode) || !Number.isI
     throw Error('Usage: benchmark-pi-guest.ts ISH FAKEFS [offline|copilot] [RUNS 1..10]');
 const ish = resolve(ishArg), root = resolve(rootArg);
 const fixtures = resolve(import.meta.dir, '../tests/arm64/benchmarks');
-const stage = mkdtempSync(join(tmpdir(), 'linuxkit-pi-auth-'));
+const stage = mkdtempSync(join(tmpdir(), 'clios-pi-auth-'));
 chmodSync(stage, 0o700);
 const env = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
     !/API_KEY|TOKEN|CREDENTIAL|^ISH_JIT|^ISH_AOT|^ISH_BIND_MOUNTS/.test(key)));

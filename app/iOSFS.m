@@ -140,7 +140,7 @@ static NSString *mount_point_for_external_folder_name(NSString *name) {
     return [@"/mnt" stringByAppendingPathComponent:name];
 }
 static NSError *external_folder_mount_error(NSInteger code, NSString *message) {
-    return [NSError errorWithDomain:@"io.carmo.ios-linuxkit.mounts"
+    return [NSError errorWithDomain:@"io.carmo.clios.mounts"
                                code:code
                            userInfo:@{NSLocalizedDescriptionKey: message}];
 }
@@ -289,7 +289,7 @@ BOOL iosfs_add_external_folder_mount_url(NSURL *url, NSError **error) {
 
     if (![url startAccessingSecurityScopedResource]) {
         if (error != NULL)
-            *error = external_folder_mount_error(_EPERM, @"ios-linuxkit does not have permission to access that folder.");
+            *error = external_folder_mount_error(_EPERM, @"CLIOS does not have permission to access that folder.");
         return NO;
     }
 

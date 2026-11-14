@@ -25,10 +25,10 @@ make build-arm64-linux-all
 The canonical push target used during this work is now:
 
 ```bash
-git push https://github.com/rcarmo/ios-linuxkit.git master
+git push https://github.com/Musti-324/CLIOS.git master
 ```
 
-Local `origin` should point at `rcarmo/ios-linuxkit`; if it does not, inspect remotes before pushing.
+Local `origin` should point at `Musti-324/CLIOS`; if it does not, inspect remotes before pushing.
 
 ## Reproducer
 

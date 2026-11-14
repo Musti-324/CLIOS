@@ -6,7 +6,7 @@ import { dirname, join, resolve } from 'node:path';
 const build = process.env.BUILD_DIR || (process.env.ISH_BIN ? dirname(process.env.ISH_BIN) : '');
 test.skipIf(!build || process.platform !== 'darwin' || process.arch !== 'arm64')(
     'DC ZVA retries the exact instruction without replaying earlier pointer updates', () => {
-    const stage = mkdtempSync(join(tmpdir(), 'linuxkit-dczva-'));
+    const stage = mkdtempSync(join(tmpdir(), 'clios-dczva-'));
     try {
         const binary = join(stage, 'retry');
         const compile = Bun.spawnSync(['clang', '-O2', '-std=gnu11', '-Wall', '-Wextra', '-Werror',

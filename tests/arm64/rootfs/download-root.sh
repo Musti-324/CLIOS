@@ -36,7 +36,7 @@ cp "$tmp/products/App/root.tar.gz" "$tmp/good"
 reject() {
  if "$@" > "$tmp/reject.log" 2>&1; then echo 'unexpected downloader acceptance' >&2; exit 1; fi
  cmp "$tmp/good" "$tmp/products/App/root.tar.gz"
- test -z "$(find "$tmp/products/App" -name '.linuxkit-root.*' -print)"
+ test -z "$(find "$tmp/products/App" -name '.clios-root.*' -print)"
 }
 reject env FAIL_FETCH=1 sh "$project/app/download-root.sh"
 reject env ROOTFS_SHA256=0000000000000000000000000000000000000000000000000000000000000000 sh "$project/app/download-root.sh"

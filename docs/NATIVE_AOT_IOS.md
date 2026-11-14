@@ -18,8 +18,8 @@ a connected, unlocked iPhone or iPad.
 Check out the current source and its dependencies:
 
 ```sh
-git clone --recurse-submodules https://github.com/rcarmo/ios-linuxkit.git
-cd ios-linuxkit
+git clone --recurse-submodules https://github.com/Musti-324/CLIOS.git
+cd CLIOS
 git checkout master
 git submodule update --init --recursive
 ```

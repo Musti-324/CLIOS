@@ -1,6 +1,6 @@
 # Limitations
 
-`ios-linuxkit` provides Linux compatibility inside an application process. It does not isolate hostile code from the host application and does not implement a complete Linux kernel or AArch64 machine.
+`CLIOS` provides Linux compatibility inside an application process. It does not isolate hostile code from the host application and does not implement a complete Linux kernel or AArch64 machine.
 
 ## Security boundary
 

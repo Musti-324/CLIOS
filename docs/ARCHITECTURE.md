@@ -1,6 +1,6 @@
 # ARM64 runtime architecture
 
-`ios-linuxkit` executes an AArch64 Linux guest with a userspace kernel and a threaded-code interpreter. The current Meson configuration accepts only `guest_arch=arm64` and `engine=asbestos`.
+`CLIOS` executes an AArch64 Linux guest with a userspace kernel and a threaded-code interpreter. The current Meson configuration accepts only `guest_arch=arm64` and `engine=asbestos`.
 
 ## Execution path
 

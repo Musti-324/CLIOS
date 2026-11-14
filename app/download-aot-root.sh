@@ -4,7 +4,7 @@ set -eu
 [ "${TARGET_NAME:-}" = iSH-ARM64-AOT-Bootstrap ] || { echo 'AOT rootfs is for the isolated AOT bootstrap only' >&2; exit 2; }
 output="$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/root.tar.gz"
 mkdir -p "$(dirname "$output")"
-stage=$(mktemp -d "$(dirname "$output")/.linuxkit-aot-root.XXXXXX")
+stage=$(mktemp -d "$(dirname "$output")/.clios-aot-root.XXXXXX")
 trap 'rm -rf "$stage"' EXIT
 trap 'exit 1' INT TERM
 

@@ -9,7 +9,7 @@ for (const [name, marker, count] of [
     ['bun-key-exchange', 'KEY_EXCHANGE_OK', 6],
     ['bun-mlkem', 'MLKEM_KEYGEN_OK', 6],
 ] as const) test.skipIf(!ish || !root)(`${name} agrees with independent native Node crypto`, () => {
-    const stage = mkdtempSync(join(tmpdir(), 'linuxkit-crypto-oracle-'));
+    const stage = mkdtempSync(join(tmpdir(), 'clios-crypto-oracle-'));
     try {
         const script = resolve(import.meta.dir, '../arm64/benchmarks', name + '.mjs');
         const oracle = Bun.spawnSync([process.env.NODE_BIN || 'node', script, '--oracle'], { timeout: 30000 });

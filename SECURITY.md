@@ -1,6 +1,6 @@
 # Security model
 
-`ios-linuxkit` runs Linux-compatible guest code inside one application process. The outer iOS sandbox is the security boundary; guest users, permissions and memory mappings do not isolate hostile code from the host application.
+`CLIOS` runs Linux-compatible guest code inside one application process. The outer iOS sandbox is the security boundary; guest users, permissions and memory mappings do not isolate hostile code from the host application.
 
 The runtime contains a large C and AArch64 assembly codebase. Memory corruption, permission-check gaps and thread-safety defects are correctness bugs unless they cross the outer sandbox or trigger host-side effects without user consent. Do not use the runtime as a secure container or expose it directly to untrusted workloads.
 
@@ -20,7 +20,7 @@ manifests detect file changes but provide no signature or archive sandbox. Use
 trusted archives, verify separately supplied checksums and run native import/build
 tools with normal user privileges.
 
-Report ordinary crashes, illegal instructions, syscall defects and compatibility failures through the repository's [GitHub issues](https://github.com/rcarmo/ios-linuxkit/issues). Include the source revision, host or iOS version, rootfs, reproduction command, exit status and relevant diagnostics.
+Report ordinary crashes, illegal instructions, syscall defects and compatibility failures through the repository's [GitHub issues](https://github.com/Musti-324/CLIOS/issues). Include the source revision, host or iOS version, rootfs, reproduction command, exit status and relevant diagnostics.
 
 This fork does not currently enable GitHub private vulnerability reporting. For a report that cannot safely be public, email [rui@carmo.io](mailto:rui@carmo.io) and request a private channel. Do not attach exploit details, credentials or private user data to a public issue.
 

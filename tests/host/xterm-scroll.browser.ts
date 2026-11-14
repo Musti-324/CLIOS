@@ -7,7 +7,7 @@ const module = process.env.PLAYWRIGHT_MODULE;
 if (!module) throw Error('Set PLAYWRIGHT_MODULE to an installed Playwright index.mjs');
 const { webkit } = await import(module);
 const root = resolve(import.meta.dir, '../../app/terminal');
-const evidence = resolve(process.env.TERMINAL_TEST_EVIDENCE || '/tmp/ios-linuxkit-terminal-scroll');
+const evidence = resolve(process.env.TERMINAL_TEST_EVIDENCE || '/tmp/clios-terminal-scroll');
 mkdirSync(evidence, { recursive: true });
 const server = Bun.serve({ hostname: '127.0.0.1', port: 0, async fetch(request) {
     const path = resolve(root, '.' + new URL(request.url).pathname);

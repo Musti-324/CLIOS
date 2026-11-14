@@ -1,4 +1,4 @@
-FiraCode Nerd Font Mono vendored for ios-linuxkit
+FiraCode Nerd Font Mono vendored for CLIOS
 
 Source: https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip
 Archive contents dated: 2025-04-24

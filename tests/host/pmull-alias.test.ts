@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 
 test('PMULL and PMULL2 read all source lanes before writing an aliased destination', () => {
-    const stage = mkdtempSync(join(tmpdir(), 'linuxkit-pmull-'));
+    const stage = mkdtempSync(join(tmpdir(), 'clios-pmull-'));
     try {
         const binary = join(stage, 'pmull');
         const compile = Bun.spawnSync(['clang', '-O2', '-Wall', '-Wextra', '-Werror',

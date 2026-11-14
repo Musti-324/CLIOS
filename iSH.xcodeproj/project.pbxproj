@@ -694,7 +694,7 @@
 		9A28E4E9219A8B670073D200 /* AboutAppearanceViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AboutAppearanceViewController.m; sourceTree = "<group>"; };
 		AA0000021F96D90D00FFB7A4 /* iSH ARM64.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "iSH ARM64.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA000015AF96D90D00FFB7A4 /* AppARM64.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppARM64.xcconfig; sourceTree = "<group>"; };
-		A07000000000000000000002 /* LinuxKit AOT Bootstrap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "LinuxKit AOT Bootstrap.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		A07000000000000000000002 /* CLIOS AOT Bootstrap.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CLIOS AOT Bootstrap.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A07000000000000000000003 /* AppARM64AOTBootstrap.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = AppARM64AOTBootstrap.xcconfig; sourceTree = "<group>"; };
 		AA000131AF96D90D00FFB7A4 /* DebugServer.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = DebugServer.c; sourceTree = "<group>"; };
 		AA000132AF96D90D00FFB7A4 /* DebugServer.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DebugServer.h; sourceTree = "<group>"; };
@@ -1161,7 +1161,7 @@
 			children = (
 				BB792B501F96D90D00FFB7A4 /* iSH.app */,
 				AA0000021F96D90D00FFB7A4 /* iSH ARM64.app */,
-				A07000000000000000000002 /* LinuxKit AOT Bootstrap.app */,
+				A07000000000000000000002 /* CLIOS AOT Bootstrap.app */,
 				BB88F4902154760800A341FD /* iSHFileProvider.appex */,
 				BB13F7DC200AD81D003D1C4D /* libish.a */,
 				BBFB2C5B2590257E00545EAB /* libish_emu.a */,
@@ -1548,8 +1548,8 @@
 				AA000062AF96D90D00FFB7A4 /* PBXTargetDependency */,
 			);
 			name = "iSH-ARM64-AOT-Bootstrap";
-			productName = "LinuxKit AOT Bootstrap";
-			productReference = A07000000000000000000002 /* LinuxKit AOT Bootstrap.app */;
+			productName = "CLIOS AOT Bootstrap";
+			productReference = A07000000000000000000002 /* CLIOS AOT Bootstrap.app */;
 			productType = "com.apple.product-type.application";
 		};
 		497F6CE3254E5E4C00C82F46 /* MakeXcodeAutoCompleteWork */ = {

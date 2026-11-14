@@ -16,7 +16,7 @@
 
 void FsInitialize(void);
 
-void ios_linuxkit_rootfs_link_anchor(void) {
+void clios_rootfs_link_anchor(void) {
 }
 
 static __init int ish_rootfs(void) {

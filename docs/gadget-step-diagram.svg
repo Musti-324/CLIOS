@@ -18,7 +18,7 @@
 
   <!-- Title -->
   <text x="430" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#1e293b">Gadget Execution Step</text>
-  <text x="430" y="44" text-anchor="middle" font-size="10" fill="#64748b">ios-linuxkit threaded-code interpreter — one guest instruction cycle</text>
+  <text x="430" y="44" text-anchor="middle" font-size="10" fill="#64748b">CLIOS threaded-code interpreter — one guest instruction cycle</text>
 
   <!-- Code Stream -->
   <rect x="60" y="60" width="720" height="55" rx="5" fill="#eef2ff" stroke="#6366f1" stroke-width="1"/>

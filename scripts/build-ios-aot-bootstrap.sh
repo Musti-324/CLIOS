@@ -19,7 +19,7 @@ build_app "$@" build
 
 # Resolve actual products from Xcode; simulator destinations use a different SDK
 # directory and product names can be overridden by the caller.
-settings=$(mktemp "${TMPDIR:-/tmp}/linuxkit-aot-settings.XXXXXX")
+settings=$(mktemp "${TMPDIR:-/tmp}/clios-aot-settings.XXXXXX")
 trap 'rm -f "$settings"' EXIT HUP INT TERM
 build_app "$@" -showBuildSettings -json > "$settings"
 bun "$repo_dir/tools/jit_aot/apple.ts" inspect-settings "$settings"

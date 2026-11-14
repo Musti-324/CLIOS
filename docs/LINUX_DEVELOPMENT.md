@@ -44,8 +44,8 @@ Optional SDL/VNC terminal development needs SDL2, SDL2_ttf, libvterm, libvncserv
 ## Clone
 
 ```sh
-git clone --recurse-submodules https://github.com/rcarmo/ios-linuxkit.git
-cd ios-linuxkit
+git clone --recurse-submodules https://github.com/Musti-324/CLIOS.git
+cd CLIOS
 ```
 
 For an existing checkout:

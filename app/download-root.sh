@@ -17,7 +17,7 @@ esac
 # Stage next to the destination so only a fully validated archive is atomically
 # installed. A failed fetch/check must not replace a previously good bundle.
 mkdir -p "$(dirname "$output")"
-tmpdir="$(mktemp -d "$(dirname "$output")/.linuxkit-root.XXXXXX")"
+tmpdir="$(mktemp -d "$(dirname "$output")/.clios-root.XXXXXX")"
 trap 'rm -rf "$tmpdir"' EXIT
 trap 'exit 1' INT TERM
 archive="$tmpdir/root.tar.gz"

@@ -1,4 +1,4 @@
-JetBrains Mono Nerd Font Mono vendored for ios-linuxkit
+JetBrains Mono Nerd Font Mono vendored for CLIOS
 
 Source: https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip
 Release contents used:

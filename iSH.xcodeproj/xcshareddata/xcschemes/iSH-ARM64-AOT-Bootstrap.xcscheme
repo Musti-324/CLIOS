@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "A07000000000000000000001"
-               BuildableName = "LinuxKit AOT Bootstrap.app"
+               BuildableName = "CLIOS AOT Bootstrap.app"
                BlueprintName = "iSH-ARM64-AOT-Bootstrap"
                ReferencedContainer = "container:iSH.xcodeproj">
             </BuildableReference>
@@ -44,7 +44,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A07000000000000000000001"
-            BuildableName = "LinuxKit AOT Bootstrap.app"
+            BuildableName = "CLIOS AOT Bootstrap.app"
             BlueprintName = "iSH-ARM64-AOT-Bootstrap"
             ReferencedContainer = "container:iSH.xcodeproj">
          </BuildableReference>
@@ -61,7 +61,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "A07000000000000000000001"
-            BuildableName = "LinuxKit AOT Bootstrap.app"
+            BuildableName = "CLIOS AOT Bootstrap.app"
             BlueprintName = "iSH-ARM64-AOT-Bootstrap"
             ReferencedContainer = "container:iSH.xcodeproj">
          </BuildableReference>

@@ -1,5 +1,5 @@
 /**
- * xterm-term-bridge.js — xterm.js terminal bridge for ios-linuxkit.
+ * xterm-term-bridge.js — xterm.js terminal bridge for CLIOS.
  *
  * Drop-in alternative to term.js (Ghostty). Uses the same native bridge API
  * (window.exports / webkit.messageHandlers) so the Obj-C host code doesn't
