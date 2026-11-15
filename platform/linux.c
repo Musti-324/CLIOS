@@ -96,6 +96,17 @@ struct platform_thread_cpu_usage platform_get_thread_cpu_usage(void) {
     };
 }
 
+bool platform_thread_cpu_time(pthread_t thread, uint64_t *user_ns, uint64_t *system_ns) {
+    // The per-thread clock reports user and system time together.
+    clockid_t clock;
+    struct timespec ts;
+    if (pthread_getcpuclockid(thread, &clock) != 0 || clock_gettime(clock, &ts) != 0)
+        return false;
+    *user_ns = ts.tv_sec * UINT64_C(1000000000) + ts.tv_nsec;
+    *system_ns = 0;
+    return true;
+}
+
 int platform_fd_get_path(int fd, char *out, size_t out_size) {
     if (out_size == 0)
         return -1;

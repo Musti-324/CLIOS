@@ -1,6 +1,8 @@
 #ifndef PLATFORM_H
 #define PLATFORM_H
 #include <stddef.h>
+#include <stdbool.h>
+#include <pthread.h>
 #include <sys/stat.h>
 #include "misc.h"
 
@@ -48,6 +50,9 @@ struct platform_thread_cpu_usage {
     uint64_t system_usec;
 };
 struct platform_thread_cpu_usage platform_get_thread_cpu_usage(void);
+// CPU time used so far by any live host thread, in nanoseconds. Returns false
+// if the host cannot report it.
+bool platform_thread_cpu_time(pthread_t thread, uint64_t *user_ns, uint64_t *system_ns);
 
 // Guest-visible CPU topology. Keep this deterministic instead of mirroring the
 // host CPU count: exposing all host cores makes modern runtimes (Bun/JSC/V8) fan

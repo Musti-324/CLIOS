@@ -13,6 +13,7 @@
 #include "fs/fd.h"
 #include "fs/dev.h"
 #include "fs/real.h"
+#include "kernel/inotify.h"
 #include "platform/platform.h"
 
 dword_t syscall_stub(void) {
@@ -842,6 +843,9 @@ static inline int fast_read(struct cpu_state *cpu) {
     // Fast path condition: small buffer (≤ 4KB) and realfs fd
     if (size > 4096)
         return -1;
+    // the full path is the one that reports reads to inotify watches
+    if (inotify_wants(IN_ACCESS_))
+        return -1;
 
     struct fd *fd = f_get(fd_no);
     if (fd == NULL || fd->ops != &realfs_fdops)
@@ -876,6 +880,9 @@ static inline int fast_write(struct cpu_state *cpu) {
 
     // Fast path condition: small buffer (≤ 4KB) and realfs fd
     if (size > 4096)
+        return -1;
+    // the full path is the one that reports writes to inotify watches
+    if (inotify_wants(IN_MODIFY_))
         return -1;
 
     struct fd *fd = f_get(fd_no);

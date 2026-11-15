@@ -10,6 +10,7 @@
 #include "fs/path.h"
 #include "fs/dev.h"
 #include "fs/real.h"
+#include "kernel/inotify.h"
 #include "platform/platform.h"
 
 static struct fd *at_fd(fd_t f) {
@@ -26,12 +27,12 @@ static void apply_umask(mode_t_ *mode) {
 }
 
 int access_check(struct statbuf *stat, int check) {
-    if (superuser()) return 0;
+    if (current == NULL || task_fsuid(current) == 0) return 0;
     if (check == 0) return 0;
     // Align check with the correct bits in mode
-    if (current->euid == stat->uid) {
+    if (task_fsuid(current) == stat->uid) {
         check <<= 6;
-    } else if (current->egid == stat->gid) {
+    } else if (task_fsgid(current) == stat->gid) {
         check <<= 3;
     }
     if (!(stat->mode & check))
@@ -54,13 +55,19 @@ dword_t sys_faccessat(fd_t at_f, addr_t path_addr, mode_t_ mode, dword_t flags) 
     if (flags & AT_EACCESS_)
         return generic_accessat(at, path, mode);
 
+    // access(2) checks against the real ids, not the effective or fs ones
     uid_t_ uid_tmp = current->euid;
     uid_t_ gid_tmp = current->egid;
+    bool fsuid_set_tmp = current->fsuid_set;
+    bool fsgid_set_tmp = current->fsgid_set;
     current->euid = current->uid;
     current->egid = current->gid;
+    current->fsuid_set = current->fsgid_set = false;
     int err = generic_accessat(at, path, mode);
     current->euid = uid_tmp;
     current->egid = gid_tmp;
+    current->fsuid_set = fsuid_set_tmp;
+    current->fsgid_set = fsgid_set_tmp;
     return err;
 }
 
@@ -128,7 +135,8 @@ int_t sys_memfd_create(addr_t name_addr, uint_t flags) {
         return _ENOMEM;
     }
     fd->real_fd = host_fd;
-    fd->stat.mode = S_IFREG | 0600;
+    // Linux gives memfds mode 0777, which is what lets them be run with fexecve
+    fd->stat.mode = S_IFREG | 0777;
     return f_install(fd, (flags & MFD_CLOEXEC_) ? O_CLOEXEC_ : 0);
 }
 
@@ -261,6 +269,8 @@ static ssize_t sys_read_buf(fd_t fd_no, void *buf, size_t size) {
         if (print_size > 100) print_size = 100;
         STRACE(" \"%.*s\"", print_size, buf);
     }
+    if (res > 0)
+        inotify_fd_event(fd, IN_ACCESS_);
     return res;
 }
 
@@ -294,6 +304,8 @@ static ssize_t sys_write_buf(fd_t fd_no, void *buf, size_t size) {
     } else {
         return _EBADF;
     }
+    if (res > 0)
+        inotify_fd_event(fd, IN_MODIFY_);
     return res;
 }
 
@@ -490,6 +502,8 @@ dword_t sys_pread(fd_t f, addr_t buf_addr, dword_t size, off_t_ off) {
 out:
     unlock(&fd->lock);
     free(buf);
+    if (res > 0)
+        inotify_fd_event(fd, IN_ACCESS_);
     return res;
 }
 
@@ -523,27 +537,37 @@ dword_t sys_pwrite(fd_t f, addr_t buf_addr, dword_t size, off_t_ off) {
     }
     unlock(&fd->lock);
     free(buf);
+    if (res > 0)
+        inotify_fd_event(fd, IN_MODIFY_);
     return res;
 }
 
 static ssize_t fd_pwrite_buf(struct fd *fd, char *buf, size_t size, off_t_ off) {
-    if (fd->ops->pwrite)
-        return fd->ops->pwrite(fd, buf, size, off);
-    if (!fd->ops->lseek || !fd->ops->write)
-        return _ESPIPE;
-    off_t_ saved_off = fd->ops->lseek(fd, 0, LSEEK_CUR);
     ssize_t res;
-    if ((res = fd->ops->lseek(fd, off, LSEEK_SET)) >= 0) {
-        res = fd->ops->write(fd, buf, size);
-        off_t_ lseek_res = fd->ops->lseek(fd, saved_off, LSEEK_SET);
-        assert(lseek_res >= 0);
+    if (fd->ops->pwrite) {
+        res = fd->ops->pwrite(fd, buf, size, off);
+    } else {
+        if (!fd->ops->lseek || !fd->ops->write)
+            return _ESPIPE;
+        off_t_ saved_off = fd->ops->lseek(fd, 0, LSEEK_CUR);
+        if ((res = fd->ops->lseek(fd, off, LSEEK_SET)) >= 0) {
+            res = fd->ops->write(fd, buf, size);
+            off_t_ lseek_res = fd->ops->lseek(fd, saved_off, LSEEK_SET);
+            assert(lseek_res >= 0);
+        }
     }
+    if (res > 0)
+        inotify_fd_event(fd, IN_MODIFY_);
     return res;
 }
 
 static ssize_t fd_pread_buf(struct fd *fd, char *buf, size_t size, off_t_ off) {
-    if (fd->ops->pread)
-        return fd->ops->pread(fd, buf, size, off);
+    if (fd->ops->pread) {
+        ssize_t res = fd->ops->pread(fd, buf, size, off);
+        if (res > 0)
+            inotify_fd_event(fd, IN_ACCESS_);
+        return res;
+    }
     if (!fd->ops->lseek || !fd->ops->read)
         return _ESPIPE;
     off_t_ saved_off = fd->ops->lseek(fd, 0, LSEEK_CUR);
@@ -956,7 +980,10 @@ dword_t sys_utimensat(fd_t at_f, addr_t path_addr, addr_t times_addr, dword_t fl
 static int generic_fsetattr(struct fd *fd, struct attr attr) {
     if (fd->mount->fs->fsetattr == NULL)
         return _EPERM;
-    return fd->mount->fs->fsetattr(fd, attr);
+    int err = fd->mount->fs->fsetattr(fd, attr);
+    if (err >= 0) // changing the size is a change to the contents
+        inotify_fd_event(fd, attr.type == attr_size ? IN_MODIFY_ : IN_ATTRIB_);
+    return err;
 }
 
 dword_t sys_fchmod(fd_t f, dword_t mode) {
@@ -1065,16 +1092,85 @@ dword_t sys_ftruncate64(fd_t f, off_t_ size) {
     return generic_fsetattr(fd, make_attr(size, size));
 }
 
-dword_t sys_fallocate(fd_t f, dword_t UNUSED(mode), off_t_ offset, off_t_ len) {
+#define FALLOC_FL_KEEP_SIZE_ 0x01
+#define FALLOC_FL_PUNCH_HOLE_ 0x02
+#define FALLOC_FL_ZERO_RANGE_ 0x10
+
+// Writes zeros over [start, end). The host has no portable hole punching, so
+// the range reads back as zeros but its blocks are not given back.
+static int fd_zero_range(struct fd *fd, off_t_ start, off_t_ end) {
+    static const size_t chunk_size = 64 * 1024;
+    char *zeros = calloc(1, chunk_size);
+    if (zeros == NULL)
+        return _ENOMEM;
+    int err = 0;
+    lock(&fd->lock);
+    while (start < end) {
+        size_t n = chunk_size;
+        if ((off_t_) n > end - start)
+            n = end - start;
+        ssize_t res = fd_pwrite_buf(fd, zeros, n, start);
+        if (res <= 0) {
+            err = res < 0 ? res : _EIO;
+            break;
+        }
+        start += res;
+    }
+    unlock(&fd->lock);
+    free(zeros);
+    return err;
+}
+
+dword_t sys_fallocate(fd_t f, dword_t mode, off_t_ offset, off_t_ len) {
+    STRACE("fallocate(%d, %#x, %lld, %lld)", f, mode, (long long) offset, (long long) len);
     struct fd *fd = f_get(f);
     if (fd == NULL)
         return _EBADF;
+    if (offset < 0 || len <= 0)
+        return _EINVAL;
+    off_t_ end;
+    if (__builtin_add_overflow(offset, len, &end))
+        return _EFBIG;
+
+    // Supported: plain allocation, zeroing, and hole punching, each with or
+    // without KEEP_SIZE. Collapsing, inserting and unsharing ranges are not.
+    if (mode & ~(FALLOC_FL_KEEP_SIZE_ | FALLOC_FL_PUNCH_HOLE_ | FALLOC_FL_ZERO_RANGE_))
+        return _EOPNOTSUPP;
+    if ((mode & FALLOC_FL_PUNCH_HOLE_) && (mode & FALLOC_FL_ZERO_RANGE_))
+        return _EOPNOTSUPP;
+    // a hole can only be punched inside the file as it is
+    if ((mode & FALLOC_FL_PUNCH_HOLE_) && !(mode & FALLOC_FL_KEEP_SIZE_))
+        return _EOPNOTSUPP;
+
+    if (fd->mount == NULL || fd->mount->fs->fstat == NULL)
+        return _ENODEV;
     struct statbuf statbuf;
     int err = fd->mount->fs->fstat(fd, &statbuf);
     if (err < 0)
         return err;
-    if ((uint64_t) offset + (uint64_t) len > statbuf.size)
-        return generic_fsetattr(fd, make_attr(size, offset + len));
+    if (S_ISFIFO(statbuf.mode))
+        return _ESPIPE;
+    if (S_ISDIR(statbuf.mode))
+        return _EISDIR;
+    if (!S_ISREG(statbuf.mode))
+        return _ENODEV;
+    if (!(fd_getflags(fd) & (O_WRONLY_ | O_RDWR_)))
+        return _EBADF;
+    off_t_ size = statbuf.size;
+
+    if (mode & (FALLOC_FL_PUNCH_HOLE_ | FALLOC_FL_ZERO_RANGE_)) {
+        // only the part of the range that lies inside the file has data
+        off_t_ zero_end = end < size ? end : size;
+        if (offset < zero_end) {
+            err = fd_zero_range(fd, offset, zero_end);
+            if (err < 0)
+                return err;
+        }
+    }
+    // Space is never reserved ahead of time, so allocating past the end only
+    // has to grow the file, and with KEEP_SIZE there is nothing left to do.
+    if (!(mode & FALLOC_FL_KEEP_SIZE_) && end > size)
+        return generic_fsetattr(fd, make_attr(size, end));
     return 0;
 }
 
@@ -1148,6 +1244,8 @@ dword_t sys_sendfile64(fd_t out_fd, fd_t in_fd, addr_t offset_addr, dword_t coun
         ssize_t nwritten = out->ops->write(out, buf, nread);
         if (nwritten < 0)
             return total > 0 ? (dword_t) total : (dword_t) nwritten;
+        if (nwritten > 0)
+            inotify_fd_event(out, IN_MODIFY_);
 
         total += nwritten;
         remaining -= nwritten;
@@ -1238,6 +1336,7 @@ dword_t sys_copy_file_range(fd_t in_fd, addr_t in_off_addr, fd_t out_fd,
             if (nwritten < 0 && total == 0) return nwritten;
             break;
         }
+        inotify_fd_event(out, IN_MODIFY_);
         total += nwritten;
         remaining -= nwritten;
         if (nwritten < nread)

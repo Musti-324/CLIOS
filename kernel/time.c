@@ -8,6 +8,7 @@
 #include "kernel/resource.h"
 #include "kernel/time.h"
 #include "fs/poll.h"
+#include "platform/platform.h"
 
 #define TIMER_ABSTIME_ (1 << 0)
 
@@ -47,15 +48,97 @@ static struct itimerspec_ timer_spec_from_real(struct timer_spec spec) {
 };
 
 
+// CPU-time clocks. Besides the two fixed ids there are dynamic ones naming
+// any thread or process, as made by pthread_getcpuclockid and
+// clock_getcpuclockid: the id is negative and holds ~pid in the upper bits,
+// a per-thread flag in bit 2, and which time is wanted in the low two bits.
+#define CPUCLOCK_PERTHREAD_MASK_ 4
+#define CPUCLOCK_WHICH_MASK_ 3
+#define CPUCLOCK_PROF_ 0 // user + system
+#define CPUCLOCK_VIRT_ 1 // user only
+#define CPUCLOCK_SCHED_ 2 // total run time
+
+static bool clock_is_cpu(dword_t clock) {
+    return clock == CLOCK_PROCESS_CPUTIME_ID_ || clock == CLOCK_THREAD_CPUTIME_ID_ ||
+        (int_t) clock < 0;
+}
+
+// CPU time of one task's host thread. pids_lock must be held unless the task
+// is current.
+static void task_cpu_time(struct task *task, uint64_t *user_ns, uint64_t *system_ns) {
+    *user_ns = *system_ns = 0;
+    // A zombie or exiting task has no thread left to ask; what it used has
+    // been added to its group's total already.
+    if (task != current && (task->zombie || task->exiting))
+        return;
+    if (!platform_thread_cpu_time(task->thread, user_ns, system_ns))
+        *user_ns = *system_ns = 0;
+}
+
+// CPU time of every thread of a process, including threads that have exited.
+// pids_lock must be held.
+static void tgroup_cpu_time(struct tgroup *group, uint64_t *user_ns, uint64_t *system_ns) {
+    lock(&group->lock);
+    struct rusage_ exited = group->rusage;
+    unlock(&group->lock);
+    *user_ns = exited.utime.sec * UINT64_C(1000000000) + exited.utime.usec * UINT64_C(1000);
+    *system_ns = exited.stime.sec * UINT64_C(1000000000) + exited.stime.usec * UINT64_C(1000);
+
+    struct task *task;
+    list_for_each_entry(&group->threads, task, group_links) {
+        uint64_t user, system;
+        task_cpu_time(task, &user, &system);
+        *user_ns += user;
+        *system_ns += system;
+    }
+}
+
+static int cpu_clock_gettime(dword_t clock, struct timespec *ts) {
+    bool per_thread;
+    int which = CPUCLOCK_SCHED_;
+    pid_t_ pid = 0;
+    if (clock == CLOCK_PROCESS_CPUTIME_ID_) {
+        per_thread = false;
+    } else if (clock == CLOCK_THREAD_CPUTIME_ID_) {
+        per_thread = true;
+    } else {
+        per_thread = clock & CPUCLOCK_PERTHREAD_MASK_;
+        which = clock & CPUCLOCK_WHICH_MASK_;
+        if (which > CPUCLOCK_SCHED_)
+            return _EINVAL;
+        pid = ~((int_t) clock >> 3);
+    }
+
+    uint64_t user_ns, system_ns;
+    lock(&pids_lock);
+    struct task *task = current;
+    if (pid != 0)
+        task = pid_get_task(pid);
+    // a thread clock can only name a thread of the calling process
+    if (task == NULL || (per_thread && task->group != current->group)) {
+        unlock(&pids_lock);
+        return _EINVAL;
+    }
+    if (per_thread)
+        task_cpu_time(task, &user_ns, &system_ns);
+    else
+        tgroup_cpu_time(task->group, &user_ns, &system_ns);
+    unlock(&pids_lock);
+
+    uint64_t ns = which == CPUCLOCK_VIRT_ ? user_ns : user_ns + system_ns;
+    ts->tv_sec = ns / 1000000000;
+    ts->tv_nsec = ns % 1000000000;
+    return 0;
+}
+
 dword_t sys_clock_gettime(dword_t clock, addr_t tp) {
     STRACE("clock_gettime(%d, 0x%x)", clock, tp);
 
     struct timespec ts;
-    if (clock == CLOCK_PROCESS_CPUTIME_ID_) {
-        // FIXME this is thread usage, not process usage
-        struct rusage_ rusage = rusage_get_current();
-        ts.tv_sec = rusage.utime.sec;
-        ts.tv_nsec = rusage.utime.usec * 1000;
+    if (clock_is_cpu(clock)) {
+        int err = cpu_clock_gettime(clock, &ts);
+        if (err < 0)
+            return err;
     } else {
         clockid_t clock_id;
         if (clockid_to_real(clock, &clock_id)) return _EINVAL;
@@ -74,13 +157,22 @@ dword_t sys_clock_gettime(dword_t clock, addr_t tp) {
 
 dword_t sys_clock_getres(dword_t clock, addr_t res_addr) {
     STRACE("clock_getres(%d, %#x)", clock, res_addr);
-    clockid_t clock_id;
-    if (clockid_to_real(clock, &clock_id)) return _EINVAL;
-
     struct timespec res;
-    int err = clock_getres(clock_id, &res);
-    if (err < 0)
-        return errno_map();
+    if (clock_is_cpu(clock)) {
+        // validate the id the same way reading it would
+        int err = cpu_clock_gettime(clock, &res);
+        if (err < 0)
+            return err;
+        res = (struct timespec) {.tv_nsec = 1};
+    } else {
+        clockid_t clock_id;
+        if (clockid_to_real(clock, &clock_id)) return _EINVAL;
+        int err = clock_getres(clock_id, &res);
+        if (err < 0)
+            return errno_map();
+    }
+    if (res_addr == 0)
+        return 0;
     struct timespec_ t;
     t.sec = res.tv_sec;
     t.nsec = res.tv_nsec;
@@ -114,6 +206,39 @@ static int itimer_set(struct tgroup *group, int which, struct timer_spec spec, s
     }
 
     return timer_set(group->itimer, spec, old_spec);
+}
+
+int_t sys_getitimer(int_t which, addr_t val_addr) {
+    STRACE("getitimer(%d, %#x)", which, val_addr);
+    if (which != ITIMER_REAL_ && which != ITIMER_VIRTUAL_ && which != ITIMER_PROF_)
+        return _EINVAL;
+
+    // Only ITIMER_REAL can be armed, so the other two always read as disarmed.
+    struct itimerval_ val = {};
+    struct tgroup *group = current->group;
+    lock(&group->lock);
+    struct timer *timer = which == ITIMER_REAL_ ? group->itimer : NULL;
+    if (timer != NULL) {
+        lock(&timer->lock);
+        if (timer->active) {
+            struct timespec left = timespec_subtract(timer->end, timespec_now(timer->clockid));
+            if (!timespec_positive(left))
+                left = (struct timespec) {};
+            val.value.sec = left.tv_sec;
+            val.value.usec = left.tv_nsec / 1000;
+            // an armed timer never reads as zero, which would mean disarmed
+            if (val.value.sec == 0 && val.value.usec == 0)
+                val.value.usec = 1;
+            val.interval.sec = timer->interval.tv_sec;
+            val.interval.usec = timer->interval.tv_nsec / 1000;
+        }
+        unlock(&timer->lock);
+    }
+    unlock(&group->lock);
+
+    if (user_put(val_addr, val))
+        return _EFAULT;
+    return 0;
 }
 
 int_t sys_setitimer(int_t which, addr_t new_val_addr, addr_t old_val_addr) {

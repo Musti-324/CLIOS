@@ -62,6 +62,7 @@ struct sigaction_ {
 
 #define SI_USER_ 0
 #define SI_TIMER_ -2
+#define SI_MESGQ_ -3
 #define SI_TKILL_ -6
 #define SI_KERNEL_ 128
 // si_code values for SIGCHLD (see waitid(2))
@@ -113,6 +114,12 @@ struct siginfo_ {
             union sigval_ value;
             int_t _private;
         } timer;
+        // signals that carry a value: sigqueue and message queue notification
+        struct {
+            pid_t_ pid;
+            uid_t_ uid;
+            union sigval_ value;
+        } rt;
     };
 };
 

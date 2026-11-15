@@ -14,6 +14,7 @@
 #include "kernel/random.h"
 #include "kernel/errno.h"
 #include "fs/fd.h"
+#include "fs/path.h"
 #include "kernel/elf.h"
 #include "kernel/vdso.h"
 #include "kernel/mm.h"
@@ -590,28 +591,25 @@ static int shebang_exec(struct fd *fd, const char *file, struct exec_args argv, 
     return err;
 }
 
-int __do_execve(const char *file, struct exec_args argv, struct exec_args envp) {
-    struct fd *fd = generic_open(file, O_RDONLY, 0);
-    if (IS_ERR(fd))
-        return PTR_ERR(fd);
-
+// Replaces the current program with the one in the open file fd. file is the
+// name it is known by: the path it was opened with, or /dev/fd/N for a
+// program run from a descriptor. The caller keeps its reference to fd.
+static int do_execve_fd(struct fd *fd, const char *file, struct exec_args argv, struct exec_args envp) {
     struct statbuf stat;
     int err = fd->mount->fs->fstat(fd, &stat);
-    if (err < 0) {
-        fd_close(fd);
+    if (err < 0)
         return err;
-    }
 
-    // if nobody has permission to execute, it should be safe to not execute
-    if (!(stat.mode & 0111)) {
-        fd_close(fd);
+    // only regular files can be programs
+    if (!S_ISREG(stat.mode))
         return _EACCES;
-    }
+    // if nobody has permission to execute, it should be safe to not execute
+    if (!(stat.mode & 0111))
+        return _EACCES;
 
     err = format_exec(fd, file, argv, envp);
     if (err == _ENOEXEC)
         err = shebang_exec(fd, file, argv, envp);
-    fd_close(fd);
     if (err < 0)
         return err;
 
@@ -623,7 +621,12 @@ int __do_execve(const char *file, struct exec_args argv, struct exec_args envp) 
     if (stat.mode & S_ISGID) {
         current->sgid = current->egid;
         current->egid = stat.gid;
+        current->fsgid_set = false;
     }
+    if (stat.mode & S_ISUID)
+        current->fsuid_set = false;
+    // capabilities are recomputed from the uids of the new program
+    current->caps_valid = false;
 
     // save current->comm
     lock(&current->general_lock);
@@ -672,14 +675,30 @@ int __do_execve(const char *file, struct exec_args argv, struct exec_args envp) 
     return 0;
 }
 
-int do_execve(const char *file, size_t argc, const char *argv_p, const char *envp_p) {
+int __do_execve(const char *file, struct exec_args argv, struct exec_args envp) {
+    struct fd *fd = generic_open(file, O_RDONLY, 0);
+    if (IS_ERR(fd))
+        return PTR_ERR(fd);
+    int err = do_execve_fd(fd, file, argv, envp);
+    fd_close(fd);
+    return err;
+}
+
+// If fd is not NULL the program is read from it instead of opening file.
+static int do_execve_file(struct fd *fd, const char *file, size_t argc, const char *argv_p, const char *envp_p) {
     struct exec_args argv = {.count = argc, .args = argv_p};
     struct exec_args envp = {.args = envp_p};
     while (*envp_p != '\0') {
         envp_p += strlen(envp_p) + 1;
         envp.count++;
     }
+    if (fd != NULL)
+        return do_execve_fd(fd, file, argv, envp);
     return __do_execve(file, argv, envp);
+}
+
+int do_execve(const char *file, size_t argc, const char *argv_p, const char *envp_p) {
+    return do_execve_file(NULL, file, argc, argv_p, envp_p);
 }
 
 static ssize_t user_read_string_array(addr_t addr, char *buf, size_t max) {
@@ -711,11 +730,9 @@ static ssize_t user_read_string_array(addr_t addr, char *buf, size_t max) {
     return i;
 }
 
-dword_t sys_execve(addr_t filename_addr, addr_t argv_addr, addr_t envp_addr) {
-    char filename[MAX_PATH];
-    if (user_read_string(filename_addr, filename, sizeof(filename)))
-        return _EFAULT;
-
+// Shared by execve and execveat. exec_fd is the already opened program for
+// execveat, or NULL to open filename.
+static dword_t execve_common(const char *filename, struct fd *exec_fd, addr_t argv_addr, addr_t envp_addr) {
     int err = _ENOMEM;
     char *argv = malloc(ARGV_MAX);
     if (argv == NULL)
@@ -919,8 +936,11 @@ node_arg_injection_done: ;
     }
 
     // Native offload: check if this binary should run natively on the host
+    // A program named by descriptor has no path to look up, so it always
+    // runs emulated.
     bool offload_is_generic = false;
-    const char *native_path = native_offload_lookup_exec(filename, envp, &offload_is_generic);
+    const char *native_path = exec_fd != NULL ? NULL :
+        native_offload_lookup_exec(filename, envp, &offload_is_generic);
     if (native_path && offload_is_generic) {
         // A system-path shell wrapper is still the user's program. Missing
         // files may offload: the app's built-in command need not exist on disk.
@@ -956,11 +976,77 @@ node_arg_injection_done: ;
         printk("native_offload: fallback to emulated exec for %s\n", filename);
     }
 
-    err = do_execve(filename, argc, argv, envp);
+    err = do_execve_file(exec_fd, filename, argc, argv, envp);
 
 err_free_envp:
     free(envp);
 err_free_argv:
     free(argv);
+    return err;
+}
+
+dword_t sys_execve(addr_t filename_addr, addr_t argv_addr, addr_t envp_addr) {
+    char filename[MAX_PATH];
+    if (user_read_string(filename_addr, filename, sizeof(filename)))
+        return _EFAULT;
+    return execve_common(filename, NULL, argv_addr, envp_addr);
+}
+
+// execveat(2): execve with the program named relative to a directory
+// descriptor, or, with AT_EMPTY_PATH and an empty path, by the descriptor
+// itself (this is what fexecve uses).
+dword_t sys_execveat(fd_t dirfd, addr_t filename_addr, addr_t argv_addr, addr_t envp_addr, int_t flags) {
+    char filename[MAX_PATH];
+    if (user_read_string(filename_addr, filename, sizeof(filename)))
+        return _EFAULT;
+    STRACE("execveat(%d, \"%.1000s\", %#x) ", dirfd, filename, flags);
+    if (flags & ~(AT_EMPTY_PATH_ | AT_SYMLINK_NOFOLLOW_))
+        return _EINVAL;
+
+    bool relative_to_fd = filename[0] != '/' && dirfd != AT_FDCWD_;
+    // without a descriptor or flags involved this is exactly execve
+    if (filename[0] != '\0' && !relative_to_fd && !(flags & AT_SYMLINK_NOFOLLOW_))
+        return execve_common(filename, NULL, argv_addr, envp_addr);
+
+    // Open the program here, then hand the open file to the common path. As
+    // on Linux, a program reached through a descriptor is named /dev/fd/N,
+    // which is also the path a script interpreter is given to open.
+    struct fd *fd;
+    char name[MAX_PATH];
+    off_t_ saved_offset = -1;
+    if (filename[0] == '\0') {
+        if (!(flags & AT_EMPTY_PATH_))
+            return _ENOENT;
+        if (dirfd == AT_FDCWD_)
+            return _EACCES; // the current directory is not a program
+        fd = f_get(dirfd);
+        if (fd == NULL)
+            return _EBADF;
+        fd_retain(fd);
+        snprintf(name, sizeof(name), "/dev/fd/%d", dirfd);
+        // loading reads through the descriptor; put its offset back afterwards
+        if (fd->ops->lseek)
+            saved_offset = fd->ops->lseek(fd, 0, LSEEK_CUR);
+    } else {
+        struct fd *at = AT_PWD;
+        if (relative_to_fd) {
+            at = f_get(dirfd);
+            if (at == NULL)
+                return _EBADF;
+            if (snprintf(name, sizeof(name), "/dev/fd/%d/%s", dirfd, filename) >= (int) sizeof(name))
+                return _ENAMETOOLONG;
+        } else {
+            strcpy(name, filename);
+        }
+        int open_flags = O_RDONLY_ | (flags & AT_SYMLINK_NOFOLLOW_ ? O_NOFOLLOW_ : 0);
+        fd = generic_openat(at, filename, open_flags, 0);
+        if (IS_ERR(fd))
+            return PTR_ERR(fd);
+    }
+
+    dword_t err = execve_common(name, fd, argv_addr, envp_addr);
+    if (saved_offset >= 0)
+        fd->ops->lseek(fd, saved_offset, LSEEK_SET);
+    fd_close(fd);
     return err;
 }

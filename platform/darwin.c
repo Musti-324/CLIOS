@@ -128,6 +128,18 @@ struct platform_thread_cpu_usage platform_get_thread_cpu_usage(void) {
     };
 }
 
+bool platform_thread_cpu_time(pthread_t thread, uint64_t *user_ns, uint64_t *system_ns) {
+    thread_basic_info_data_t info = {};
+    mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
+    // pthread_mach_thread_np lends the port without adding a reference
+    kern_return_t status = thread_info(pthread_mach_thread_np(thread), THREAD_BASIC_INFO, (thread_info_t)&info, &count);
+    if (status != KERN_SUCCESS)
+        return false;
+    *user_ns = info.user_time.seconds * UINT64_C(1000000000) + info.user_time.microseconds * UINT64_C(1000);
+    *system_ns = info.system_time.seconds * UINT64_C(1000000000) + info.system_time.microseconds * UINT64_C(1000);
+    return true;
+}
+
 int platform_fd_get_path(int fd, char *out, size_t out_size) {
     if (out_size == 0)
         return -1;

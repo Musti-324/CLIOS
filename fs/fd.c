@@ -4,6 +4,7 @@
 #include "kernel/calls.h"
 #include "kernel/resource.h"
 #include "kernel/fs.h"
+#include "kernel/inotify.h"
 #include "fs/poll.h"
 #include "fs/fd.h"
 #include "fs/inode.h"
@@ -35,6 +36,9 @@ int fd_close(struct fd *fd) {
     int err = 0;
     if (--fd->refcount == 0) {
         poll_cleanup_fd(fd);
+        // must come before the close, which is what forgets the file's path
+        if (inotify_wants(IN_CLOSE_WRITE_ | IN_CLOSE_NOWRITE_))
+            inotify_fd_event(fd, fd->flags & (O_WRONLY_ | O_RDWR_) ? IN_CLOSE_WRITE_ : IN_CLOSE_NOWRITE_);
         if (fd->ops->close)
             err = fd->ops->close(fd);
         // see comment in close in kernel/fs.h

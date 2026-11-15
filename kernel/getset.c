@@ -22,6 +22,79 @@ pid_t_ sys_getppid() {
     return ppid;
 }
 
+// Capabilities. Privilege checks in this kernel are uid based (superuser()),
+// so the sets are bookkeeping: they make capget/capset behave as programs
+// expect (root starts with everything, the sets can only shrink, and they
+// follow the uids the way Linux does), but dropping a capability does not by
+// itself take a privilege away.
+#define CAP_VERSION_1_ 0x19980330
+#define CAP_VERSION_2_ 0x20071026
+#define CAP_VERSION_3_ 0x20080522
+#define CAP_SETPCAP_ 8
+#define CAP_LAST_CAP_ 40
+#define CAP_FULL_SET_ ((UINT64_C(1) << (CAP_LAST_CAP_ + 1)) - 1)
+
+struct cap_header_ {
+    dword_t version;
+    pid_t_ pid;
+};
+struct cap_data_ {
+    dword_t effective;
+    dword_t permitted;
+    dword_t inheritable;
+};
+struct cap_sets {
+    uint64_t effective, permitted, inheritable;
+};
+
+static struct cap_sets task_caps(struct task *task) {
+    if (task->caps_valid) {
+        return (struct cap_sets) {
+            .effective = task->cap_effective,
+            .permitted = task->cap_permitted,
+            .inheritable = task->cap_inheritable,
+        };
+    }
+    // What a process has after exec with no file capabilities: everything
+    // permitted if any uid is root, and effective too if the euid is root.
+    struct cap_sets caps = {};
+    if (task->uid == 0 || task->euid == 0 || task->suid == 0)
+        caps.permitted = CAP_FULL_SET_;
+    if (task->euid == 0)
+        caps.effective = caps.permitted;
+    return caps;
+}
+
+static void task_set_caps(struct task *task, struct cap_sets caps) {
+    task->cap_effective = caps.effective;
+    task->cap_permitted = caps.permitted;
+    task->cap_inheritable = caps.inheritable;
+    task->caps_valid = true;
+}
+
+struct old_uids {
+    uid_t_ uid, euid, suid;
+    struct cap_sets caps;
+};
+static struct old_uids uids_save(void) {
+    return (struct old_uids) {current->uid, current->euid, current->suid, task_caps(current)};
+}
+// Called after any change to the uids. Mirrors Linux's cap_emulate_setxuid,
+// and resets the filesystem uid, which always follows a new euid.
+static void uids_changed(struct old_uids old) {
+    current->fsuid_set = false;
+    struct cap_sets caps = old.caps;
+    bool had_root = old.uid == 0 || old.euid == 0 || old.suid == 0;
+    bool has_root = current->uid == 0 || current->euid == 0 || current->suid == 0;
+    if (had_root && !has_root)
+        caps.permitted = caps.effective = 0;
+    if (old.euid == 0 && current->euid != 0)
+        caps.effective = 0;
+    if (old.euid != 0 && current->euid == 0)
+        caps.effective = caps.permitted;
+    task_set_caps(current, caps);
+}
+
 dword_t sys_getuid32() {
     STRACE("getuid32()");
     return current->uid;
@@ -34,6 +107,7 @@ dword_t sys_geteuid32() {
 
 int_t sys_setuid(uid_t_ uid) {
     STRACE("setuid(%d)", uid);
+    struct old_uids old = uids_save();
     if (superuser()) {
         current->uid = current->suid = uid;
     } else {
@@ -41,6 +115,7 @@ int_t sys_setuid(uid_t_ uid) {
             return _EPERM;
     }
     current->euid = uid;
+    uids_changed(old);
     return 0;
 }
 
@@ -55,12 +130,14 @@ dword_t sys_setresuid(uid_t_ ruid, uid_t_ euid, uid_t_ suid) {
             return _EPERM;
     }
 
+    struct old_uids old = uids_save();
     if (ruid != (uid_t) -1)
         current->uid = ruid;
     if (euid != (uid_t) -1)
         current->euid = euid;
     if (suid != (uid_t) -1)
         current->suid = suid;
+    uids_changed(old);
     return 0;
 }
 
@@ -98,6 +175,7 @@ int_t sys_setgid(uid_t_ gid) {
             return _EPERM;
     }
     current->egid = gid;
+    current->fsgid_set = false;
     return 0;
 }
 
@@ -118,6 +196,7 @@ dword_t sys_setresgid(uid_t_ rgid, uid_t_ egid, uid_t_ sgid) {
         current->egid = egid;
     if (sgid != (uid_t) -1)
         current->sgid = sgid;
+    current->fsgid_set = false;
     return 0;
 }
 
@@ -161,26 +240,130 @@ int_t sys_setgroups(dword_t size, addr_t list) {
     return 0;
 }
 
-// this does not really work
+// setfsuid and setfsgid cannot report errors: they always return the previous
+// value, and the caller finds out whether the change happened by calling
+// again. An id is accepted if it matches one of the caller's own ids.
+int_t sys_setfsuid(uid_t_ uid) {
+    STRACE("setfsuid(%d)", uid);
+    uid_t_ old = task_fsuid(current);
+    if (superuser() || uid == current->uid || uid == current->euid ||
+            uid == current->suid || uid == old) {
+        if (uid != (uid_t_) -1) {
+            current->fsuid = uid;
+            current->fsuid_set = uid != current->euid;
+        }
+    }
+    return old;
+}
+
+int_t sys_setfsgid(uid_t_ gid) {
+    STRACE("setfsgid(%d)", gid);
+    uid_t_ old = task_fsgid(current);
+    if (superuser() || gid == current->gid || gid == current->egid ||
+            gid == current->sgid || gid == old) {
+        if (gid != (uid_t_) -1) {
+            current->fsgid = gid;
+            current->fsgid_set = gid != current->egid;
+        }
+    }
+    return old;
+}
+
+// Reads and checks a capability header. Returns the number of 32-bit data
+// structs the version uses. For an unknown version the preferred one is
+// written back and EINVAL returned, which is how libcap probes for it.
+static int cap_read_header(addr_t header_addr, struct cap_header_ *header) {
+    if (user_get(header_addr, *header))
+        return _EFAULT;
+    switch (header->version) {
+        case CAP_VERSION_1_:
+            return 1;
+        case CAP_VERSION_2_:
+        case CAP_VERSION_3_:
+            return 2;
+    }
+    dword_t version = CAP_VERSION_3_;
+    if (user_put(header_addr, version))
+        return _EFAULT;
+    return _EINVAL;
+}
+
 int_t sys_capget(addr_t header_addr, addr_t data_addr) {
     STRACE("capget(%#x, %#x)", header_addr, data_addr);
-    return 0;
-}
-int_t sys_capset(addr_t header_addr, addr_t data_addr) {
-    STRACE("capset(%#x, %#x)", header_addr, data_addr);
-    return 0;
-}
-
-// minimal version according to Linux sys/personality.h
-int_t sys_personality(dword_t persona) {
-    STRACE("personality(%#x)", persona);
-    // Get the personality
-    if (persona == 0xffffffff)
-        return current->group->personality;
-
-    // ADDR_NO_RANDOMIZE is the only thing we support, and you can't turn it off
-    if (persona != ADDR_NO_RANDOMIZE_)
+    struct cap_header_ header;
+    int count = cap_read_header(header_addr, &header);
+    if (count == _EINVAL && data_addr == 0)
+        return 0; // version probe
+    if (count < 0)
+        return count;
+    if (header.pid < 0)
         return _EINVAL;
 
-    return current->group->personality;
+    struct cap_sets caps;
+    if (header.pid == 0 || header.pid == current->pid) {
+        caps = task_caps(current);
+    } else {
+        lock(&pids_lock);
+        struct task *task = pid_get_task(header.pid);
+        if (task == NULL) {
+            unlock(&pids_lock);
+            return _ESRCH;
+        }
+        caps = task_caps(task);
+        unlock(&pids_lock);
+    }
+
+    struct cap_data_ data[2] = {
+        {(dword_t) caps.effective, (dword_t) caps.permitted, (dword_t) caps.inheritable},
+        {caps.effective >> 32, caps.permitted >> 32, caps.inheritable >> 32},
+    };
+    if (user_write(data_addr, data, count * sizeof(data[0])))
+        return _EFAULT;
+    return 0;
+}
+
+int_t sys_capset(addr_t header_addr, addr_t data_addr) {
+    STRACE("capset(%#x, %#x)", header_addr, data_addr);
+    struct cap_header_ header;
+    int count = cap_read_header(header_addr, &header);
+    if (count < 0)
+        return count;
+    // a process may only change its own capabilities
+    if (header.pid != 0 && header.pid != current->pid)
+        return _EPERM;
+
+    struct cap_data_ data[2] = {};
+    if (user_read(data_addr, data, count * sizeof(data[0])))
+        return _EFAULT;
+    struct cap_sets new = {
+        .effective = data[0].effective | (uint64_t) data[1].effective << 32,
+        .permitted = data[0].permitted | (uint64_t) data[1].permitted << 32,
+        .inheritable = data[0].inheritable | (uint64_t) data[1].inheritable << 32,
+    };
+
+    struct cap_sets old = task_caps(current);
+    // Capabilities can be dropped but not gained: the permitted set may only
+    // shrink, the effective set must stay inside it, and the inheritable set
+    // may only grow from the permitted set unless CAP_SETPCAP is effective.
+    if (new.permitted & ~old.permitted)
+        return _EPERM;
+    if (new.effective & ~new.permitted)
+        return _EPERM;
+    if (!(old.effective & (UINT64_C(1) << CAP_SETPCAP_)) &&
+            (new.inheritable & ~(old.inheritable | old.permitted)))
+        return _EPERM;
+    task_set_caps(current, new);
+    return 0;
+}
+
+// The execution domain is recorded but has no effect: there is only one ABI
+// and guest addresses are never randomized.
+int_t sys_personality(dword_t persona) {
+    STRACE("personality(%#x)", persona);
+    lock(&current->group->lock);
+    dword_t old = current->group->personality;
+    if (persona != 0xffffffff)
+        current->group->personality = persona;
+    unlock(&current->group->lock);
+    return old;
 }

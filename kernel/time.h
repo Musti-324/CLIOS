@@ -5,6 +5,7 @@
 #define CLOCK_REALTIME_ 0
 #define CLOCK_MONOTONIC_ 1
 #define CLOCK_PROCESS_CPUTIME_ID_ 2
+#define CLOCK_THREAD_CPUTIME_ID_ 3
 #define CLOCK_MONOTONIC_RAW_ 4
 #define CLOCK_REALTIME_COARSE_ 5
 #define CLOCK_MONOTONIC_COARSE_ 6
@@ -59,6 +60,7 @@ struct tms_ {
 };
 
 int_t sys_setitimer(int_t which, addr_t new_val, addr_t old_val);
+int_t sys_getitimer(int_t which, addr_t val);
 int_t sys_timer_create(dword_t clock, addr_t sigevent_addr, addr_t timer_addr);
 int_t sys_timer_settime(dword_t timer, int_t flags, addr_t new_value_addr, addr_t old_value_addr);
 int_t sys_timer_gettime(dword_t timer_id, addr_t curr_value_addr);

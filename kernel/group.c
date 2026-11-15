@@ -115,10 +115,17 @@ dword_t sys_setsid() {
     return task_setsid(current);
 }
 
-dword_t sys_getsid() {
-    STRACE("getsid()");
+dword_t sys_getsid(pid_t_ pid) {
+    STRACE("getsid(%d)", pid);
     lock(&pids_lock);
-    pid_t_ sid = current->group->sid;
+    struct task *task = current;
+    if (pid != 0)
+        task = pid_get_task(pid);
+    if (task == NULL) {
+        unlock(&pids_lock);
+        return _ESRCH;
+    }
+    pid_t_ sid = task->group->sid;
     unlock(&pids_lock);
     return sid;
 }

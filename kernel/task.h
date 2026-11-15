@@ -30,6 +30,14 @@ struct task {
 #define MAX_GROUPS 32
     unsigned ngroups;
     uid_t_ groups[MAX_GROUPS];
+    // Filesystem ids set with setfsuid/setfsgid. While unset they follow
+    // euid/egid, which is also what every set*uid/set*gid call restores.
+    bool fsuid_set, fsgid_set;
+    uid_t_ fsuid, fsgid;
+    // Capability sets as seen by capget/capset. Until caps_valid is set they
+    // are derived from the uids (root has everything, others nothing).
+    bool caps_valid;
+    uint64_t cap_effective, cap_permitted, cap_inheritable;
     char comm[16] __strncpy_safe; // locked by general_lock
     bool did_exec; // for that one annoying setsid edge case
 
@@ -254,6 +262,15 @@ void task_run_current(void);
 extern void (*exit_hook)(struct task *task, int code);
 
 #define superuser() (current != NULL && current->euid == 0)
+
+// The ids used for filesystem permission checks and for the ownership of new
+// files. They equal euid/egid unless changed with setfsuid/setfsgid.
+static inline uid_t_ task_fsuid(struct task *task) {
+    return task->fsuid_set ? task->fsuid : task->euid;
+}
+static inline uid_t_ task_fsgid(struct task *task) {
+    return task->fsgid_set ? task->fsgid : task->egid;
+}
 
 // Update the thread name to match the current task, in the format "comm-pid".
 // Will ensure that the -pid part always fits, then will fit as much of comm as possible.

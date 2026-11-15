@@ -125,7 +125,59 @@ struct mq_queue {
     int64_t curmsgs;
     struct mq_message *messages;
     struct mq_queue *next;
+
+    // threads blocked waiting for a message; while there are any, an arriving
+    // message goes to them and no notification is sent
+    int receivers_waiting;
+    // mq_notify registration, at most one per queue; notify_tgid 0 means none
+    pid_t_ notify_tgid;
+    int_t notify_method;
+    int_t notify_signo;
+    union sigval_ notify_value;
 };
+
+#define SIGEV_SIGNAL_ 0
+#define SIGEV_NONE_ 1
+
+// What to deliver once shm_lock has been dropped. tgid 0 means nothing.
+struct mq_notification {
+    pid_t_ tgid;
+    int_t signo;
+    union sigval_ value;
+};
+
+// Call with shm_lock held just before adding a message. A registration fires
+// only when the queue goes from empty to non-empty with nobody already
+// waiting to receive, and it is used up by firing.
+static struct mq_notification mq_message_arriving(struct mq_queue *queue) {
+    struct mq_notification notification = {};
+    if (queue->notify_tgid == 0 || queue->curmsgs != 0 || queue->receivers_waiting != 0)
+        return notification;
+    if (queue->notify_method == SIGEV_SIGNAL_) {
+        notification.tgid = queue->notify_tgid;
+        notification.signo = queue->notify_signo;
+        notification.value = queue->notify_value;
+    }
+    queue->notify_tgid = 0;
+    return notification;
+}
+
+// Call after dropping shm_lock.
+static void mq_send_notification(struct mq_notification notification) {
+    if (notification.tgid == 0)
+        return;
+    struct siginfo_ info = {
+        .code = SI_MESGQ_,
+        .rt.pid = current->tgid,
+        .rt.uid = current->uid,
+        .rt.value = notification.value,
+    };
+    lock(&pids_lock);
+    struct task *task = pid_get_task(notification.tgid);
+    if (task != NULL)
+        send_signal(task, notification.signo, info);
+    unlock(&pids_lock);
+}
 
 struct mq_attr_ {
     int64_t flags;
@@ -242,6 +294,9 @@ static int mqfd_close(struct fd *fd) {
     lock(&shm_lock);
     struct mq_queue *queue = fd->data;
     if (queue != NULL) {
+        // a registration does not outlive its owner's descriptor
+        if (current != NULL && queue->notify_tgid == current->tgid)
+            queue->notify_tgid = 0;
         queue->open_count--;
         mq_maybe_free_unlocked(queue);
     }
@@ -277,12 +332,10 @@ static ssize_t mqfd_read(struct fd *fd, void *buf, size_t bufsize) {
             unlock(&shm_lock);
             return _EAGAIN;
         }
+        queue->receivers_waiting++;
         int err = wait_for(&mq_cond, &shm_lock, NULL);
-        if (err < 0 && err != _EINTR) {
-            unlock(&shm_lock);
-            return err;
-        }
-        if (err == _EINTR) {
+        queue->receivers_waiting--;
+        if (err < 0) {
             unlock(&shm_lock);
             return err;
         }
@@ -339,9 +392,11 @@ static ssize_t mqfd_write(struct fd *fd, const void *buf, size_t bufsize) {
     while (*tail != NULL)
         tail = &(*tail)->next;
     *tail = msg;
+    struct mq_notification notification = mq_message_arriving(queue);
     queue->curmsgs++;
     notify(&mq_cond);
     unlock(&shm_lock);
+    mq_send_notification(notification);
     return bufsize;
 }
 
@@ -467,9 +522,11 @@ int_t sys_mq_timedsend(fd_t mqdes, addr_t msg_ptr, size_t msg_len, uint_t msg_pr
         slot = &(*slot)->next;
     msg->next = *slot;
     *slot = msg;
+    struct mq_notification notification = mq_message_arriving(queue);
     queue->curmsgs++;
     notify(&mq_cond);
     unlock(&shm_lock);
+    mq_send_notification(notification);
     return 0;
 }
 
@@ -486,7 +543,9 @@ ssize_t sys_mq_timedreceive(fd_t mqdes, addr_t msg_ptr, size_t msg_len, addr_t m
             unlock(&shm_lock);
             return _EAGAIN;
         }
+        queue->receivers_waiting++;
         int err = wait_for(&mq_cond, &shm_lock, NULL);
+        queue->receivers_waiting--;
         if (err < 0) {
             unlock(&shm_lock);
             return err;
@@ -514,12 +573,44 @@ ssize_t sys_mq_timedreceive(fd_t mqdes, addr_t msg_ptr, size_t msg_len, addr_t m
     return size;
 }
 
+// Registers the calling process to be told when a message arrives on an empty
+// queue, or with a null notification removes its registration. SIGEV_SIGNAL
+// and SIGEV_NONE are supported. SIGEV_THREAD is not: the C library builds it
+// on a netlink socket that the kernel writes to, and there is no netlink here.
 int_t sys_mq_notify(fd_t mqdes, addr_t notification_addr) {
-    (void)notification_addr;
+    STRACE("mq_notify(%d, %#llx)", mqdes, (unsigned long long) notification_addr);
     struct fd *fd = f_get(mqdes);
     if (fd == NULL || fd->ops != &mqfd_ops)
         return _EBADF;
-    return 0;
+
+    struct sigevent_ sigev = {};
+    if (notification_addr != 0) {
+        if (user_get(notification_addr, sigev))
+            return _EFAULT;
+        if (sigev.method != SIGEV_SIGNAL_ && sigev.method != SIGEV_NONE_)
+            return _EINVAL;
+        if (sigev.method == SIGEV_SIGNAL_ && (sigev.signo < 1 || sigev.signo >= NUM_SIGS))
+            return _EINVAL;
+    }
+
+    int err = 0;
+    lock(&shm_lock);
+    struct mq_queue *queue = fd->data;
+    if (queue == NULL) {
+        err = _EBADF;
+    } else if (notification_addr == 0) {
+        if (queue->notify_tgid == current->tgid)
+            queue->notify_tgid = 0;
+    } else if (queue->notify_tgid != 0) {
+        err = _EBUSY; // somebody is registered already
+    } else {
+        queue->notify_tgid = current->tgid;
+        queue->notify_method = sigev.method;
+        queue->notify_signo = sigev.signo;
+        queue->notify_value = sigev.value;
+    }
+    unlock(&shm_lock);
+    return err;
 }
 
 int_t sys_mq_getsetattr(fd_t mqdes, addr_t newattr_addr, addr_t oldattr_addr) {

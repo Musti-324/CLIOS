@@ -221,11 +221,36 @@ int64_t sys_sched_setscheduler(pid_t_ UNUSED(pid), int_t UNUSED(policy), addr_t 
     return 0;
 }
 
+#define SCHED_FIFO_ 1
+#define SCHED_RR_ 2
+#define SCHED_BATCH_ 3
+#define SCHED_IDLE_ 5
+#define SCHED_DEADLINE_ 6
+
+// The static priority range of each policy, as on Linux: 1..99 for the
+// realtime policies and 0 for everything else.
+static int sched_priority_range(int_t policy, bool max) {
+    switch (policy) {
+        case SCHED_FIFO_:
+        case SCHED_RR_:
+            return max ? 99 : 1;
+        case SCHED_OTHER_:
+        case SCHED_BATCH_:
+        case SCHED_IDLE_:
+        case SCHED_DEADLINE_:
+            return 0;
+    }
+    return _EINVAL;
+}
+
 int_t sys_sched_get_priority_max(int_t policy) {
     STRACE("sched_get_priority_max(%d)", policy);
-    if (policy == 0)
-        return 0;
-    return _EINVAL;
+    return sched_priority_range(policy, true);
+}
+
+int_t sys_sched_get_priority_min(int_t policy) {
+    STRACE("sched_get_priority_min(%d)", policy);
+    return sched_priority_range(policy, false);
 }
 
 int_t sys_ioprio_get(int_t UNUSED(which), int_t UNUSED(who), int_t UNUSED(ioprio)) {
