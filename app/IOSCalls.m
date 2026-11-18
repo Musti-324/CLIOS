@@ -47,9 +47,6 @@ void sync_do_in_workqueue(void (^block)(void (^done)(void))) {
     pthread_mutex_unlock(&mutex);
 }
 
-long UIPasteboard_changeCount(void) {
-    return UIPasteboard.generalPasteboard.changeCount;
-}
 nsobj_t UIPasteboard_get(void) {
     return (__bridge nsobj_t) [UIPasteboard.generalPasteboard.string dataUsingEncoding:NSUTF8StringEncoding];
 }

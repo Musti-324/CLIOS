@@ -47,12 +47,6 @@ int generic_statat(struct fd *at, const char *path_raw, struct statbuf *stat, bo
 }
 
 // TODO get rid of this and maybe everything else in the file
-static struct fd *at_fd(fd_t f) {
-    if (f == AT_FDCWD_)
-        return AT_PWD;
-    return f_get(f);
-}
-
 static dword_t sys_stat_path(fd_t at_f, addr_t path_addr, addr_t statbuf_addr, bool follow_links) {
     int err;
     char path[MAX_PATH];

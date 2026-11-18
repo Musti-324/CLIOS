@@ -136,9 +136,6 @@ struct mq_queue {
     union sigval_ notify_value;
 };
 
-#define SIGEV_SIGNAL_ 0
-#define SIGEV_NONE_ 1
-
 // What to deliver once shm_lock has been dropped. tgid 0 means nothing.
 struct mq_notification {
     pid_t_ tgid;

@@ -1,8 +1,10 @@
 #include <string.h>
+#include <unistd.h>
 #include <sys/stat.h>
 #include "debug.h"
 #include "kernel/fs.h"
 #include "fs/fd.h"
+#include "fs/real.h"
 #include "kernel/errno.h"
 
 static struct mount adhoc_mount;
@@ -17,8 +19,21 @@ struct fd *adhoc_fd_create(const struct fd_ops *ops) {
     return fd;
 }
 
+// Most adhoc fds are pure kernel objects, but one made by memfd_create is
+// backed by a host file, and that file is what holds its contents and size.
+static bool adhoc_has_host_file(struct fd *fd) {
+    return fd->ops == &realfs_fdops;
+}
+
 static int adhoc_fstat(struct fd *fd, struct statbuf *stat) {
     *stat = fd->stat;
+    if (adhoc_has_host_file(fd)) {
+        struct stat real_stat;
+        if (fstat(fd->real_fd, &real_stat) == 0) {
+            stat->size = real_stat.st_size;
+            stat->blocks = real_stat.st_blocks;
+        }
+    }
     return 0;
 }
 
@@ -34,7 +49,11 @@ static int adhoc_fsetattr(struct fd *fd, struct attr attr) {
             fd->stat.mode = (fd->stat.mode & S_IFMT) | (attr.mode & ~S_IFMT);
             break;
         case attr_size:
-            return _EINVAL;
+            if (!adhoc_has_host_file(fd))
+                return _EINVAL;
+            if (ftruncate(fd->real_fd, attr.size) < 0)
+                return errno_map();
+            break;
     }
     return 0;
 }

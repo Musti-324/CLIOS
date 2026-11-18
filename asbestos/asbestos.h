@@ -112,6 +112,5 @@ void asbestos_free(struct asbestos *asbestos);
 // mem_changed.
 void asbestos_invalidate_range(struct asbestos *asbestos, page_t start, page_t end);
 void asbestos_invalidate_page(struct asbestos *asbestos, page_t page);
-void asbestos_invalidate_all(struct asbestos *asbestos);
 
 #endif

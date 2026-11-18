@@ -133,6 +133,10 @@ struct sigqueue {
     struct siginfo_ info;
 };
 
+#define SIGEV_SIGNAL_ 0
+#define SIGEV_NONE_ 1
+#define SIGEV_THREAD_ID_ 4
+
 struct sigevent_ {
     union sigval_ value;  // offset 0, size 8
     int_t signo;          // offset 8, size 4

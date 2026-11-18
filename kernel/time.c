@@ -486,9 +486,6 @@ static void posix_timer_callback(struct posix_timer *timer) {
     unlock(&pids_lock);
 }
 
-#define SIGEV_SIGNAL_ 0
-#define SIGEV_NONE_ 1
-#define SIGEV_THREAD_ID_ 4
 
 int_t sys_timer_create(dword_t clock, addr_t sigevent_addr, addr_t timer_addr) {
     STRACE("timer_create(%d, %#x, %#x)", clock, sigevent_addr, timer_addr);

@@ -101,8 +101,6 @@ int must_check wait_for(cond_t *cond, lock_t *lock, struct timespec *timeout);
 int wait_for_ignore_signals(cond_t *cond, lock_t *lock, struct timespec *timeout);
 // Wake up all waiters.
 void notify(cond_t *cond);
-// Wake up one waiter.
-void notify_once(cond_t *cond);
 
 // this is a read-write lock that prefers writers, i.e. if there are any
 // writers waiting a read lock will block.

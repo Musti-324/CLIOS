@@ -2,16 +2,6 @@
 #include <string.h>
 #include "util/fifo.h"
 
-void fifo_init(struct fifo *fifo, size_t capacity) {
-    fifo->buf = malloc(capacity);
-    fifo->capacity = capacity;
-    fifo->size = fifo->start = 0;
-}
-
-void fifo_destroy(struct fifo *fifo) {
-    free(fifo->buf);
-}
-
 size_t fifo_capacity(struct fifo *fifo) {
     return fifo->capacity;
 }
@@ -60,8 +50,4 @@ int fifo_read(struct fifo *fifo, void *buf, size_t size, int flags) {
         fifo->size -= size;
     }
     return 0;
-}
-
-void fifo_flush(struct fifo *fifo) {
-    fifo->size = 0;
 }

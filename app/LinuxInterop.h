@@ -52,7 +52,6 @@ int Terminal_sendOutput_length(nsobj_t _self, const char *data, int size);
 int Terminal_roomForOutput(nsobj_t _self);
 
 nsobj_t UIPasteboard_get(void);
-long UIPasteboard_changeCount(void);
 void UIPasteboard_set(const char *data, size_t len);
 size_t NSData_length(nsobj_t data);
 const void *NSData_bytes(nsobj_t data);

@@ -627,29 +627,6 @@ void asbestos_invalidate_page(struct asbestos *asbestos, page_t page) {
 slow_path:
     asbestos_invalidate_range(asbestos, page, page + 1);
 }
-void asbestos_invalidate_all(struct asbestos *asbestos) {
-    // [T-ish-mm-double-destroy-crash] Safe no-op after cleanup race.
-    if (asbestos == NULL) return;
-    lock(&asbestos->lock);
-    bool did_invalidate = false;
-    struct fiber_block *block, *tmp;
-    for (size_t bucket = 0; bucket < FIBER_PAGE_HASH_SIZE; bucket++) {
-        for (int i = 0; i <= 1; i++) {
-            struct list *blocks = &asbestos->page_hash[bucket].blocks[i];
-            if (list_null(blocks))
-                continue;
-            list_for_each_entry_safe(blocks, block, tmp, page[i]) {
-                fiber_block_disconnect(asbestos, block);
-                block->is_jetsam = true;
-                list_add(&asbestos->jetsam, &block->jetsam);
-                did_invalidate = true;
-            }
-        }
-    }
-    if (did_invalidate)
-        atomic_fetch_add_explicit(&asbestos->invalidate_gen, 1, memory_order_release);
-    unlock(&asbestos->lock);
-}
 
 static struct fiber_block *fiber_lookup(struct asbestos *asbestos, addr_t addr);
 static void fiber_prechain_same_page(struct asbestos *asbestos, struct fiber_block *block);

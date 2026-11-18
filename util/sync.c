@@ -88,9 +88,6 @@ int wait_for_ignore_signals(cond_t *cond, lock_t *lock, struct timespec *timeout
 void notify(cond_t *cond) {
     pthread_cond_broadcast(&cond->cond);
 }
-void notify_once(cond_t *cond) {
-    pthread_cond_signal(&cond->cond);
-}
 
 __thread sigjmp_buf unwind_buf;
 __thread bool should_unwind = false;

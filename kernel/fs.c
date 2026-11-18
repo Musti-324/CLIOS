@@ -13,7 +13,9 @@
 #include "kernel/inotify.h"
 #include "platform/platform.h"
 
-static struct fd *at_fd(fd_t f) {
+// The directory a *at syscall resolves relative paths against: the working
+// directory for AT_FDCWD, otherwise the open descriptor (NULL if it is bad).
+struct fd *at_fd(fd_t f) {
     if (f == AT_FDCWD_)
         return AT_PWD;
     return f_get(f);
@@ -135,7 +137,9 @@ int_t sys_memfd_create(addr_t name_addr, uint_t flags) {
         return _ENOMEM;
     }
     fd->real_fd = host_fd;
-    // Linux gives memfds mode 0777, which is what lets them be run with fexecve
+    // Linux gives memfds mode 0777, which is what lets them be run with
+    // fexecve. fstat reads the mode from the host file, so set it there too.
+    fchmod(host_fd, 0777);
     fd->stat.mode = S_IFREG | 0777;
     return f_install(fd, (flags & MFD_CLOEXEC_) ? O_CLOEXEC_ : 0);
 }
@@ -468,80 +472,9 @@ qword_t sys_lseek64(fd_t f, sqword_t off, dword_t whence) {
     return res;
 }
 
-dword_t sys_pread(fd_t f, addr_t buf_addr, dword_t size, off_t_ off) {
-    STRACE("pread(%d, 0x%x, %d, %d)", f, buf_addr, size, off);
-    struct fd *fd = f_get(f);
-    if (fd == NULL)
-        return _EBADF;
-    char *buf = malloc(size+1);
-    if (buf == NULL)
-        return _ENOMEM;
-    lock(&fd->lock);
-    ssize_t res;
-    if (fd->ops->pread) {
-        res = fd->ops->pread(fd, buf, size, off);
-    } else {
-        off_t_ saved_off = fd->ops->lseek(fd, 0, LSEEK_CUR);
-        if ((res = fd->ops->lseek(fd, off, LSEEK_SET)) < 0) {
-            goto out;
-        }
-        res = fd->ops->read(fd, buf, size);
-        // This really shouldn't fail. The lseek man page lists these reasons:
-        // EBADF, ESPIPE: can't happen because the last lseek wouldn't have succeeded.
-        // EOVERFLOW: can't happen for LSEEK_SET.
-        // EINVAL: can't happen other than typoing LSEEK_SET, because we know saved_off is not negative.
-        off_t_ lseek_res = fd->ops->lseek(fd, saved_off, LSEEK_SET);
-        assert(lseek_res >= 0);
-    }
-    if (res >= 0) {
-        buf[res] = '\0';
-        STRACE(" \"%.99s\"", buf);
-        if (user_write(buf_addr, buf, res))
-            res = _EFAULT;
-    }
-out:
-    unlock(&fd->lock);
-    free(buf);
-    if (res > 0)
-        inotify_fd_event(fd, IN_ACCESS_);
-    return res;
-}
-
-dword_t sys_pwrite(fd_t f, addr_t buf_addr, dword_t size, off_t_ off) {
-    STRACE("pwrite(%d, 0x%x, %d, %d)", f, buf_addr, size, off);
-    struct fd *fd = f_get(f);
-    if (fd == NULL)
-        return _EBADF;
-    char *buf = malloc(size+1);
-    if (buf == NULL)
-        return _ENOMEM;
-    if (user_read(buf_addr, buf, size)) {
-        free(buf);
-        return _EFAULT;
-    }
-    lock(&fd->lock);
-    ssize_t res;
-    if (fd->ops->pwrite) {
-        res = fd->ops->pwrite(fd, buf, size, off);
-    } else {
-        off_t_ saved_off = fd->ops->lseek(fd, 0, LSEEK_CUR);
-        if ((res = fd->ops->lseek(fd, off, LSEEK_SET)) >= 0) {
-            res = fd->ops->write(fd, buf, size);
-            // This really shouldn't fail. The lseek man page lists these reasons:
-            // EBADF, ESPIPE: can't happen because the last lseek wouldn't have succeeded.
-            // EOVERFLOW: can't happen for LSEEK_SET.
-            // EINVAL: can't happen other than typoing LSEEK_SET, because we know saved_off is not negative.
-            off_t_ lseek_res = fd->ops->lseek(fd, saved_off, LSEEK_SET);
-            assert(lseek_res >= 0);
-        }
-    }
-    unlock(&fd->lock);
-    free(buf);
-    if (res > 0)
-        inotify_fd_event(fd, IN_MODIFY_);
-    return res;
-}
-
+// Positional read/write on any descriptor. Both fall back to seeking and
+// restoring the offset when the filesystem has no pread/pwrite of its own, and
+// both report the access to inotify watches.
 static ssize_t fd_pwrite_buf(struct fd *fd, char *buf, size_t size, off_t_ off) {
     ssize_t res;
     if (fd->ops->pwrite) {
@@ -562,21 +495,65 @@ static ssize_t fd_pwrite_buf(struct fd *fd, char *buf, size_t size, off_t_ off) 
 }
 
 static ssize_t fd_pread_buf(struct fd *fd, char *buf, size_t size, off_t_ off) {
-    if (fd->ops->pread) {
-        ssize_t res = fd->ops->pread(fd, buf, size, off);
-        if (res > 0)
-            inotify_fd_event(fd, IN_ACCESS_);
-        return res;
-    }
-    if (!fd->ops->lseek || !fd->ops->read)
-        return _ESPIPE;
-    off_t_ saved_off = fd->ops->lseek(fd, 0, LSEEK_CUR);
     ssize_t res;
-    if ((res = fd->ops->lseek(fd, off, LSEEK_SET)) >= 0) {
-        res = fd->ops->read(fd, buf, size);
-        off_t_ lseek_res = fd->ops->lseek(fd, saved_off, LSEEK_SET);
-        assert(lseek_res >= 0);
+    if (fd->ops->pread) {
+        res = fd->ops->pread(fd, buf, size, off);
+    } else {
+        if (!fd->ops->lseek || !fd->ops->read)
+            return _ESPIPE;
+        off_t_ saved_off = fd->ops->lseek(fd, 0, LSEEK_CUR);
+        if ((res = fd->ops->lseek(fd, off, LSEEK_SET)) >= 0) {
+            res = fd->ops->read(fd, buf, size);
+            // This really shouldn't fail. The lseek man page lists these reasons:
+            // EBADF, ESPIPE: can't happen because the last lseek wouldn't have succeeded.
+            // EOVERFLOW: can't happen for LSEEK_SET.
+            // EINVAL: can't happen other than typoing LSEEK_SET, because we know saved_off is not negative.
+            off_t_ lseek_res = fd->ops->lseek(fd, saved_off, LSEEK_SET);
+            assert(lseek_res >= 0);
+        }
     }
+    if (res > 0)
+        inotify_fd_event(fd, IN_ACCESS_);
+    return res;
+}
+
+dword_t sys_pread(fd_t f, addr_t buf_addr, dword_t size, off_t_ off) {
+    STRACE("pread(%d, 0x%x, %d, %d)", f, buf_addr, size, off);
+    struct fd *fd = f_get(f);
+    if (fd == NULL)
+        return _EBADF;
+    char *buf = malloc(size+1);
+    if (buf == NULL)
+        return _ENOMEM;
+    lock(&fd->lock);
+    ssize_t res = fd_pread_buf(fd, buf, size, off);
+    if (res >= 0) {
+        buf[res] = '\0';
+        STRACE(" \"%.99s\"", buf);
+        if (user_write(buf_addr, buf, res))
+            res = _EFAULT;
+    }
+    unlock(&fd->lock);
+    free(buf);
+    return res;
+}
+
+dword_t sys_pwrite(fd_t f, addr_t buf_addr, dword_t size, off_t_ off) {
+    STRACE("pwrite(%d, 0x%x, %d, %d)", f, buf_addr, size, off);
+    struct fd *fd = f_get(f);
+    if (fd == NULL)
+        return _EBADF;
+    char *buf = malloc(size+1);
+    if (buf == NULL)
+        return _ENOMEM;
+    if (user_read(buf_addr, buf, size)) {
+        free(buf);
+        return _EFAULT;
+    }
+    lock(&fd->lock);
+    ssize_t res = fd_pwrite_buf(fd, buf, size, off);
+    unlock(&fd->lock);
+    free(buf);
     return res;
 }
 
